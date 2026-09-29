@@ -130,19 +130,91 @@ export async function listenTeams(eventCode, callback) {
 
 export async function listenPlayers(eventCode, callback) {
   const db = await getDb();
-  if (!db) return () => {};
+  const cfg = await getConfig();
   const code = (eventCode || 'ESL2026').toUpperCase();
+
+  const fetchFallbackPlayers = async () => {
+    try {
+      // 1. Try Apps Script
+      if (cfg.apps_script_url) {
+        const url = new URL(cfg.apps_script_url);
+        url.searchParams.set('action', 'getPlayers');
+        url.searchParams.set('eventCode', code);
+        const res = await (await fetch(url.toString())).json();
+        if (res && res.players && res.players.length > 0) {
+          callback(res.players);
+          if (db) {
+            db.ref(`auctions/${code}/players`).set(res.players).catch(() => {});
+          }
+          return;
+        }
+      }
+
+      // 2. Try Google Sheets GViz direct
+      if (cfg.sheet_id) {
+        const gvizUrl = `https://docs.google.com/spreadsheets/d/${cfg.sheet_id}/gviz/tq?tqx=out:json&sheet=Attendee%20List`;
+        const res = await fetch(gvizUrl);
+        const text = await res.text();
+        const jsonStr = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?/);
+        if (jsonStr) {
+          const gData = JSON.parse(jsonStr[1]);
+          if (gData.table) {
+            const cols = gData.table.cols.map(c => c.label || c.id || '').filter(Boolean);
+            const evIdx = cols.findIndex(c => /event/i.test(c));
+            const rows = gData.table.rows.map(row => {
+              const p = {};
+              row.c.forEach((cell, i) => {
+                if (i < cols.length) {
+                  p[cols[i]] = cell ? (cell.v !== null && cell.v !== undefined ? String(cell.v) : '') : '';
+                }
+              });
+              return p;
+            }).filter(p => {
+              if (!Object.values(p).some(v => v && v.trim())) return false;
+              if (evIdx !== -1) {
+                const ec = (p[cols[evIdx]] || '').trim().toUpperCase();
+                return ec === 'ALL' || ec === code;
+              }
+              return code === 'ESL2026';
+            });
+
+            if (rows.length > 0) {
+              callback(rows);
+              if (db) {
+                db.ref(`auctions/${code}/players`).set(rows).catch(() => {});
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Fallback players fetch error:', e);
+    }
+  };
+
+  if (!db) {
+    fetchFallbackPlayers();
+    return () => {};
+  }
+
   const ref = db.ref(`auctions/${code}/players`);
   const handler = snap => {
     let data = snap.val();
     if (!data && code === 'ESL2026') {
       db.ref('eslAuction/players').once('value', leg => {
         const val = leg.val();
-        callback(Array.isArray(val) ? val : Object.values(val || {}));
+        if (val) {
+          const list = Array.isArray(val) ? val : Object.values(val || {});
+          callback(list);
+        } else {
+          fetchFallbackPlayers();
+        }
       });
-    } else {
+    } else if (data) {
       const list = Array.isArray(data) ? data : Object.values(data || {});
       callback(list);
+    } else {
+      fetchFallbackPlayers();
     }
   };
   ref.on('value', handler);

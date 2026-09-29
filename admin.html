@@ -2161,10 +2161,30 @@ function fbBroadcastEvents() {
     db.ref('events').set(evMap).catch(err => console.error('FB events error:', err));
 }
 
+function fbBroadcastPlayers() {
+    if (!db || !allPlayers || allPlayers.length === 0) return;
+    try {
+        const eventsToBroadcast = new Set(allPlayers.map(p => getPlayerEventCode(p)).filter(Boolean));
+        eventsToBroadcast.forEach(code => {
+            const evPlayers = allPlayers.filter(p => {
+                const pCode = getPlayerEventCode(p);
+                return pCode === 'ALL' || pCode === code;
+            });
+            db.ref(`auctions/${code}/players`).set(evPlayers).catch(() => {});
+            if (code === 'ESL2026') {
+                db.ref('eslAuction/players').set(evPlayers).catch(() => {});
+            }
+        });
+    } catch(e) {
+        console.warn('fbBroadcastPlayers error:', e);
+    }
+}
+
 function fbBroadcastAll() {
     fbBroadcastTeams();
     fbBroadcastLog();
     fbBroadcastEvents();
+    fbBroadcastPlayers();
 }
 
 // ===================== TEAM BIDDING CONTROLS =====================
@@ -3019,7 +3039,7 @@ async function loadAll() {
             apiGet('getEvents'),
             apiGet('getTeams', { eventCode: activeEventCode }),
             apiGet('getSettings', { eventCode: activeEventCode }),
-            apiGet('getPlayers', { eventCode: activeEventCode }),
+            apiGet('getPlayers'),
             apiGet('getAuctionLog', { eventCode: activeEventCode })
         ]);
 
@@ -3108,10 +3128,21 @@ async function loadAll() {
         });
         try { localStorage.setItem('cricket_teams', JSON.stringify(allTeams)); } catch(e) {}
 
-        teams = getActiveEventTeams();
-        settings = sData.settings || settings || {};
-        allPlayers = pData.players || allPlayers || [];
-        playerHeaders = pData.headers || playerHeaders || [];
+        if (pData.players && Array.isArray(pData.players) && pData.players.length > 0) {
+            allPlayers = pData.players;
+            playerHeaders = pData.headers || playerHeaders || [];
+        }
+
+        // Firebase fallback if still empty
+        if ((!allPlayers || allPlayers.length === 0) && db) {
+            try {
+                const snap = await db.ref(`auctions/${activeEventCode}/players`).once('value');
+                const fbP = snap.val();
+                if (fbP) {
+                    allPlayers = Array.isArray(fbP) ? fbP : Object.values(fbP);
+                }
+            } catch(e) {}
+        }
 
         // Direct Google Sheet fallback if backend players empty
         if ((!allPlayers || allPlayers.length === 0) && SHEET_ID) {
