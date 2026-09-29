@@ -2028,21 +2028,25 @@ function getTeamRetainedPlayers(t) {
     return [];
 }
 
-function getPlayerBaseValue(playerName, eventCode) {
-    if (!playerName) return 0;
-    const cleanName = String(playerName).trim().toLowerCase();
+function getPlayerBaseValue(playerOrName, eventCode) {
+    if (!playerOrName) return MIN_PLAYER_VALUE || 10000;
     const evCode = (eventCode || activeEventCode || 'ESL2026').toUpperCase();
 
-    // Look for matching player in allPlayers
-    const player = allPlayers.find(p => {
-        const pName = getPlayerName(p).toLowerCase();
-        const pEv = (getPlayerEventCode(p) || 'ESL2026').toUpperCase();
-        return pName === cleanName && (pEv === evCode || pEv === 'ALL' || !eventCode);
-    });
+    let player = null;
+    if (typeof playerOrName === 'object' && playerOrName !== null) {
+        player = playerOrName;
+    } else {
+        const cleanName = String(playerOrName).trim().toLowerCase();
+        player = allPlayers.find(p => {
+            const pName = getPlayerName(p).toLowerCase();
+            const pEv = (getPlayerEventCode(p) || 'ESL2026').toUpperCase();
+            return pName === cleanName && (pEv === evCode || pEv === 'ALL' || !eventCode);
+        });
+    }
 
     let val = 0;
     if (player) {
-        val = parseFloat(player['Ticket Price'] || player['Base Price'] || player.price || 0) || 0;
+        val = parseFloat(player['BasePrice'] || player['Base Price'] || player.basePrice || player.base_price || player['Ticket Price'] || player.price || 0) || 0;
     }
 
     // If no explicit ticket/base price or 0, fallback to tournament minPlayerValue
@@ -4552,7 +4556,7 @@ function showEditPlayerView(playerName, evCode) {
     document.getElementById('pf_club').value = player.Club || player.club || '';
     document.getElementById('pf_mobile').value = player['Mobile Number'] || player.mobile || '';
     document.getElementById('pf_bookingId').value = player['Booking ID'] || player.bookingId || '';
-    document.getElementById('pf_price').value = player['Ticket Price'] || player['Base Price'] || player.price || '';
+    document.getElementById('pf_price').value = player.BasePrice || player['BasePrice'] || player['Base Price'] || player.basePrice || player['Ticket Price'] || player.price || '';
 
     renderPlayerEventSelectors();
     const formSel = document.getElementById('pf_eventCode');
@@ -4830,7 +4834,7 @@ function renderPlayersTable() {
         const club = p.Club || p.club || '-';
         const mobile = p['Mobile Number'] || p.mobile || '-';
         const bookingId = p['Booking ID'] || p.bookingId || '';
-        const basePrice = p['Ticket Price'] || p['Base Price'] || p.price || '0';
+        const basePrice = getPlayerBaseValue(p, evCode);
 
         const bat = p['Batting Profile'] || p.battingProfile || '';
         const bowl = p['Bowling Profile'] || p.bowlingProfile || '';
@@ -4953,6 +4957,8 @@ async function addPlayer() {
         bookingId: bookingId,
         'Ticket Name': 'General',
         'Ticket Price': price || '0',
+        BasePrice: price || '0',
+        basePrice: price || '0',
         price: price || '0',
         Status: 'Active',
         'Batting Profile': battingProfile,
@@ -5053,6 +5059,8 @@ async function saveEditPlayer() {
         'Booking ID': bookingId,
         bookingId: bookingId,
         'Ticket Price': price || '0',
+        BasePrice: price || '0',
+        basePrice: price || '0',
         price: price || '0',
         'Batting Profile': battingProfile,
         battingProfile: battingProfile,
@@ -5561,12 +5569,13 @@ function pickNextPlayer() {
     });
 
     // Save current player to backend
+    const playerBaseValue = getPlayerBaseValue(player, activeEventCode);
     apiPost({
         action: 'setCurrentPlayer',
         eventCode: activeEventCode,
         playerName: name,
         playerIndex: allPlayers.indexOf(player),
-        basePrice: MIN_PLAYER_VALUE
+        basePrice: playerBaseValue
     });
 
     // Broadcast to Firebase for real-time
@@ -5583,7 +5592,7 @@ function pickNextPlayer() {
         },
         currentBid: 0,
         currentBidder: '',
-        baseValue: MIN_PLAYER_VALUE
+        baseValue: playerBaseValue
     });
 
     showPlayerOnStage(player);
@@ -5596,6 +5605,7 @@ function showPlayerOnStage(player) {
     timerSeconds = timerMax;
     fbBroadcastTimer(false, timerMax);
 
+    const playerBaseValue = getPlayerBaseValue(player, activeEventCode);
     const playerDetailHtml = buildAdminPlayerDetailHtml(player);
     const teamsHtml = buildTeamsStatusHtml();
 
@@ -5610,7 +5620,7 @@ function showPlayerOnStage(player) {
         <div class="auction-col auction-col-controls">
             <div class="auction-col-title">Auction Controls</div>
             <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:6px;">
-                Base Value: <strong style="color:var(--bright-gold);">${formatNum(MIN_PLAYER_VALUE)}</strong>
+                Base Value: <strong style="color:var(--bright-gold);">${formatNum(playerBaseValue)}</strong>
             </div>
             <div class="timer-display" id="timerDisplay">${timerMax}</div>
             <div class="bid-info" id="bidInfo"><span style="color:var(--text-secondary);">Waiting for PICK...</span></div>
@@ -5993,7 +6003,7 @@ function formatNum(n) {
 }
 
 // Field classification helpers for player detail display
-const _hiddenKeys = ['ticket price','ticketprice','discount amount','discountamount','discount','paid amount','paidamount','status','paid date','paiddate','payment date','qr code','qrcode','qr','check in status','checkinstatus','checkin status','check-in status','checkin','eventcode','event code','event'];
+const _hiddenKeys = ['ticket price','ticketprice','baseprice','base price','discount amount','discountamount','discount','paid amount','paidamount','status','paid date','paiddate','payment date','qr code','qrcode','qr','check in status','checkinstatus','checkin status','check-in status','checkin','eventcode','event code','event'];
 function _isHidden(h) { const k = h.toLowerCase().trim(); return _hiddenKeys.some(x => k === x || k.includes(x)); }
 function _isClub(h) { return h.toLowerCase().trim() === 'club'; }
 const _battingKeys = ['runs','run',"100's",'100s',"50's",'50s',"30's",'30s','sr','strike rate','avg','average','batting avg','batting average'];
@@ -6009,7 +6019,7 @@ const _fieldIcons = {
     'batting profile':'&#127951;','batting style':'&#127951;','batting position':'&#127942;','batting order':'&#127942;',
     'bowling profile':'&#127936;','bowling style':'&#127936;','bowling':'&#127936;','wicket keeping':'&#129518;',
     'wicketkeeping':'&#129518;','wicket keeper':'&#129518;','keeper':'&#129518;','wk':'&#129518;','email':'&#9993;',
-    'team':'&#128101;','age':'&#128197;','location':'&#128205;','jersey':'&#128085;'
+    'team':'&#128101;','age':'&#128197;','location':'&#128205;','jersey':'&#128085;','baseprice':'&#128176;','base price':'&#128176;'
 };
 function _icon(h) { return _fieldIcons[h.toLowerCase().trim()] || '&#128196;'; }
 
@@ -6034,6 +6044,8 @@ function buildAdminPlayerDetailHtml(player) {
 
     // Badges
     let badges = '';
+    const baseVal = getPlayerBaseValue(player, activeEventCode);
+    if (baseVal > 0) badges += `<span class="pdl-badge" style="background:rgba(212,168,67,0.18);color:var(--bright-gold);border:1px solid rgba(212,168,67,0.35);font-weight:700;">💰 Base: ${formatNum(baseVal)}</span>`;
     if (role) badges += `<span class="pdl-badge pdl-badge-role">${esc(role)}</span>`;
     if (club === 'home') badges += `<span class="pdl-badge pdl-badge-home">&#127968; Home</span>`;
     if (club === 'away') badges += `<span class="pdl-badge pdl-badge-away">&#9992;&#65039; Away</span>`;

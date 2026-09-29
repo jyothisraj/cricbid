@@ -911,7 +911,7 @@ function findSheetPlayer(name) {
 function _isName(h) { const k = h.toLowerCase().trim(); return k === 'name' || k === 'player name' || k === 'playername' || k.includes('name'); }
 function _isPhoto(h) { const k = h.toLowerCase().trim(); return k.includes('photo') || k.includes('image') || k === 'picture' || k === 'dp' || k === 'thumbnail'; }
 function _isClub(h) { return h.toLowerCase().trim() === 'club'; }
-const _hiddenKeys = ['ticket price','ticketprice','discount amount','discountamount','discount','paid amount','paidamount','status','paid date','paiddate','payment date','qr code','qrcode','qr','check in status','checkinstatus','checkin status','check-in status','checkin','eventcode','event code','event'];
+const _hiddenKeys = ['ticket price','ticketprice','baseprice','base price','discount amount','discountamount','discount','paid amount','paidamount','status','paid date','paiddate','payment date','qr code','qrcode','qr','check in status','checkinstatus','checkin status','check-in status','checkin','eventcode','event code','event'];
 function _isHidden(h) { const k = h.toLowerCase().trim(); return _hiddenKeys.some(x => k === x || k.includes(x)); }
 const _battingKeys = ['runs','run',"100's",'100s',"50's",'50s',"30's",'30s','sr','strike rate','avg','average','batting avg','batting average'];
 const _bowlingKeys = ['wickets','wicket','5 wkts','5wkts','5 wickets','3 wkts','3wkts','3 wickets','economy','econ','economy rate'];
@@ -926,7 +926,7 @@ const _fieldIcons = {
     'batting profile':'&#127951;','batting style':'&#127951;','batting position':'&#127942;','batting order':'&#127942;',
     'bowling profile':'&#127936;','bowling style':'&#127936;','bowling':'&#127936;','wicket keeping':'&#129518;',
     'wicketkeeping':'&#129518;','wicket keeper':'&#129518;','keeper':'&#129518;','wk':'&#129518;','email':'&#9993;',
-    'team':'&#128101;','age':'&#128197;','location':'&#128205;','jersey':'&#128085;'
+    'team':'&#128101;','age':'&#128197;','location':'&#128205;','jersey':'&#128085;','baseprice':'&#128176;','base price':'&#128176;'
 };
 function _icon(h) { return _fieldIcons[h.toLowerCase().trim()] || '&#128196;'; }
 
@@ -989,6 +989,8 @@ function buildPlayerDetailHtml(player) {
     });
 
     let badges = '';
+    const baseVal = parseFloat(player['BasePrice'] || player['Base Price'] || player.basePrice || player['Ticket Price'] || player.price || MIN_PLAYER_VALUE || 10000);
+    if (baseVal > 0) badges += `<span class="pdl-badge" style="background:rgba(212,168,67,0.18);color:var(--bright-gold);border:1px solid rgba(212,168,67,0.35);font-weight:700;">💰 Base: ${formatNum(baseVal)}</span>`;
     if (role) badges += `<span class="pdl-badge pdl-badge-role">${esc(role)}</span>`;
     if (club === 'home') badges += `<span class="pdl-badge pdl-badge-home">&#127968; Home</span>`;
     if (club === 'away') badges += `<span class="pdl-badge pdl-badge-away">&#9992;&#65039; Away</span>`;
@@ -1246,6 +1248,7 @@ function renderAuctionStage(data) {
                 : `<div class="player-detail-photo-frame"></div><span class="player-detail-photo-initials">${initials}</span>`;
 
             let badges = '';
+            if (baseValue > 0) badges += `<span class="pdl-badge" style="background:rgba(212,168,67,0.18);color:var(--bright-gold);border:1px solid rgba(212,168,67,0.35);font-weight:700;">💰 Base: ${formatNum(baseValue)}</span>`;
             if (cp.role) badges += `<span class="pdl-badge pdl-badge-role">${esc(cp.role)}</span>`;
             if (cp.club) {
                 if (cp.club.toLowerCase() === 'home') badges += `<span class="pdl-badge pdl-badge-home">&#127968; Home</span>`;

@@ -165,12 +165,19 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
                 </div>
 
                 <div style={{ marginTop: 'auto', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--slate-400)' }}>Status:</span>
-                  {isSold ? (
-                    <span className="badge badge-live">Sold to {isSold.team}</span>
-                  ) : (
-                    <span className="badge badge-event">Available</span>
-                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--slate-400)' }}>Base Price</span>
+                    <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#F59E0B' }}>
+                      ₹{Number(p.BasePrice || p['Base Price'] || p.basePrice || p['Ticket Price'] || 10000).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div>
+                    {isSold ? (
+                      <span className="badge badge-live">Sold to {isSold.team}</span>
+                    ) : (
+                      <span className="badge badge-event">Available</span>
+                    )}
+                  </div>
                 </div>
               </div>
             );

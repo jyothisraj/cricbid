@@ -950,7 +950,8 @@ function addPlayer(data) {
   setVal(['club', 'category'], data.club || data.category || 'General');
   setVal(['mobilenumber', 'mobile', 'phone'], data.mobileNumber || data.mobile || '');
   setVal(['ticketname', 'ticket'], data.ticketName || 'PLAYER REGISTRATION');
-  setVal(['ticketprice', 'price', 'baseprice'], data.ticketPrice || data.basePrice || '');
+  setVal(['ticketprice', 'price'], data.ticketPrice || data.price || '');
+  setVal(['baseprice', 'base_price', 'basevalue'], data.basePrice || data.baseValue || data.ticketPrice || '');
   setVal(['status'], data.status || '');
   setVal(['bookingid', 'id'], data.bookingId || String(Date.now()).slice(-6));
   setVal(['battingprofile', 'battingstyle'], data.battingProfile || data.battingStyle || '');
@@ -1020,7 +1021,8 @@ function updatePlayer(data) {
   if (data.club || data.category) setCell(['club', 'category'], data.club || data.category);
   if (data.mobileNumber || data.mobile) setCell(['mobilenumber', 'mobile', 'phone'], data.mobileNumber || data.mobile);
   if (data.ticketName) setCell(['ticketname', 'ticket'], data.ticketName);
-  if (data.ticketPrice || data.basePrice) setCell(['ticketprice', 'price', 'baseprice'], data.ticketPrice || data.basePrice);
+  if (data.ticketPrice || data.price) setCell(['ticketprice', 'price'], data.ticketPrice || data.price);
+  if (data.basePrice || data.baseValue || data.ticketPrice) setCell(['baseprice', 'base_price', 'basevalue'], data.basePrice || data.baseValue || data.ticketPrice);
   if (data.status !== undefined) setCell(['status'], data.status);
   if (data.battingProfile || data.battingStyle) setCell(['battingprofile', 'battingstyle'], data.battingProfile || data.battingStyle);
   if (data.battingPosition) setCell(['battingposition', 'position'], data.battingPosition);
