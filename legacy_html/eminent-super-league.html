@@ -1,0 +1,1750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CricBid - Player Catalog &amp; Statistics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-canvas: #F8FAFC;
+            --bg-card: #FFFFFF;
+            --bg-card-hover: #FFFFFF;
+            --bg-subtle: #F1F5F9;
+            --border: #E2E8F0;
+            --border-hover: #CBD5E1;
+
+            --primary: #2563EB;
+            --primary-hover: #1D4ED8;
+            --primary-subtle: #EFF6FF;
+            --primary-border: #BFDBFE;
+
+            --green: #059669;
+            --green-subtle: #ECFDF5;
+            --green-border: #A7F3D0;
+
+            --red: #DC2626;
+            --red-subtle: #FEF2F2;
+            --red-border: #FECACA;
+
+            --orange: #D97706;
+            --orange-subtle: #FFFBEB;
+            --orange-border: #FDE68A;
+
+            --slate-900: #0F172A;
+            --slate-800: #1E293B;
+            --slate-700: #334155;
+            --slate-600: #475569;
+            --slate-500: #64748B;
+            --slate-400: #94A3B8;
+            --slate-300: #CBD5E1;
+            --slate-200: #E2E8F0;
+            --slate-100: #F1F5F9;
+
+            --text-primary: #0F172A;
+            --text-secondary: #475569;
+            --text-gold: #2563EB;
+            --bright-gold: #059669;
+            --accent-gold: #2563EB;
+            --primary-red: #2563EB;
+            --dark-red: #1D4ED8;
+            --light-gold: #3B82F6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-canvas);
+            color: var(--slate-800);
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(ellipse at 15% 15%, rgba(37, 99, 235, 0.04) 0%, transparent 50%),
+                radial-gradient(ellipse at 85% 85%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
+        }
+
+        /* Header */
+        .header {
+            position: relative;
+            background: #FFFFFF;
+            padding: 36px 24px 28px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+            z-index: 1;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--green));
+        }
+
+        .logo-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: var(--slate-900);
+            letter-spacing: -0.5px;
+            line-height: 1.15;
+        }
+
+        .header-subtitle {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--primary);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        /* Search & Filter Bar */
+        .controls-bar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            padding: 14px 24px;
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+        }
+
+        .controls-inner {
+            max-width: 1280px;
+            margin: 0 auto;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 220px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 18px 10px 42px;
+            background: #FFFFFF;
+            border: 1.5px solid var(--slate-200);
+            border-radius: 10px;
+            color: var(--slate-900);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 500;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .search-box input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        }
+
+        .search-box input::placeholder {
+            color: var(--slate-400);
+        }
+
+        .search-box svg {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 17px;
+            height: 17px;
+            color: var(--slate-400);
+        }
+
+        .player-count {
+            font-size: 0.85rem;
+            color: var(--slate-600);
+            padding: 7px 16px;
+            background: var(--slate-100);
+            border-radius: 20px;
+            border: 1px solid var(--slate-200);
+            white-space: nowrap;
+            font-weight: 600;
+        }
+
+        .player-count strong {
+            color: var(--slate-900);
+        }
+
+        .filter-select {
+            padding: 9px 16px;
+            background: #FFFFFF;
+            border: 1.5px solid var(--slate-200);
+            border-radius: 10px;
+            color: var(--slate-800);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.88rem;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            min-width: 160px;
+            transition: all 0.2s ease;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 34px;
+        }
+        .filter-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        }
+        .filter-select option {
+            background: #FFFFFF;
+            color: var(--slate-900);
+        }
+
+        /* Loading & Error States */
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 100px 20px;
+            z-index: 1;
+            position: relative;
+        }
+
+        .loader {
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--slate-200);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 18px;
+            color: var(--slate-500);
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .error-container {
+            text-align: center;
+            padding: 80px 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .error-container h2 {
+            color: var(--red);
+            margin-bottom: 10px;
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        .error-container p {
+            color: var(--slate-600);
+            max-width: 500px;
+            margin: 0 auto 20px;
+            line-height: 1.6;
+        }
+
+        .retry-btn {
+            padding: 10px 26px;
+            background: linear-gradient(135deg, #2563EB, #1D4ED8);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.92rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+        }
+
+        /* Players Grid */
+        .players-section {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 30px 24px 60px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .players-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+            gap: 20px;
+        }
+
+        /* Player Card */
+        .player-card {
+            background: #FFFFFF;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px 16px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+        }
+
+        .player-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--green));
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+
+        .player-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--border-hover);
+            box-shadow: 0 12px 24px -4px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
+        }
+
+        .player-card:hover::before {
+            opacity: 1;
+        }
+
+        .player-avatar {
+            width: 86px;
+            height: 86px;
+            border-radius: 50%;
+            margin: 0 auto 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 800;
+            font-family: 'Outfit', sans-serif;
+            color: var(--primary);
+            background: linear-gradient(135deg, var(--primary-subtle), #DBEAFE);
+            border: 2px solid var(--primary);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+            transition: all 0.25s ease;
+            overflow: hidden;
+        }
+
+        .player-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .player-card:hover .player-avatar {
+            transform: scale(1.05);
+        }
+
+        .player-name {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: var(--slate-900);
+            letter-spacing: -0.2px;
+            line-height: 1.3;
+            margin-bottom: 6px;
+        }
+
+        .player-role-tag {
+            display: inline-block;
+            font-size: 0.7rem;
+            padding: 3px 10px;
+            border-radius: 20px;
+            background: var(--primary-subtle);
+            color: var(--primary);
+            border: 1px solid var(--primary-border);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        /* Club badge (Home/Away) */
+        .club-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            z-index: 2;
+            border: 1.5px solid #FFFFFF;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .club-badge.home {
+            background: var(--green);
+            color: white;
+        }
+
+        .club-badge.away {
+            background: var(--orange);
+            color: white;
+        }
+
+        .club-badge-modal {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.72rem;
+            padding: 3px 12px;
+            border-radius: 20px;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            font-weight: 700;
+            margin-left: 6px;
+        }
+
+        .club-badge-modal.home {
+            background: var(--green-subtle);
+            color: var(--green);
+            border: 1px solid var(--green-border);
+        }
+
+        .club-badge-modal.away {
+            background: var(--orange-subtle);
+            color: var(--orange);
+            border: 1px solid var(--orange-border);
+        }
+
+        /* Player number badge */
+        .player-number {
+            position: absolute;
+            top: 10px;
+            right: 12px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.75rem;
+            color: var(--slate-400);
+            font-weight: 700;
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.5);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.25s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal {
+            background: #FFFFFF;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 950px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            transform: scale(0.95) translateY(10px);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+        }
+
+        .modal-overlay.active .modal {
+            transform: scale(1) translateY(0);
+        }
+
+        .modal::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--green));
+            border-radius: 20px 20px 0 0;
+            z-index: 2;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            width: 36px;
+            height: 36px;
+            border: 1px solid var(--border);
+            background: var(--slate-100);
+            border-radius: 50%;
+            color: var(--slate-600);
+            font-size: 1.25rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            z-index: 10;
+        }
+
+        .modal-close:hover {
+            background: var(--slate-200);
+            color: var(--slate-900);
+        }
+
+        /* Two-column layout inside modal */
+        .modal-layout {
+            display: flex;
+            flex-direction: row;
+            min-height: 400px;
+        }
+
+        .modal-details {
+            flex: 1;
+            padding: 35px 28px 30px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-player-name {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.75rem;
+            font-weight: 800;
+            color: var(--slate-900);
+            letter-spacing: -0.4px;
+            margin-bottom: 4px;
+            line-height: 1.2;
+        }
+
+        .modal-player-role {
+            display: inline-block;
+            font-size: 0.72rem;
+            padding: 3px 12px;
+            border-radius: 20px;
+            background: var(--primary-subtle);
+            color: var(--primary);
+            border: 1px solid var(--primary-border);
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        .modal-body {
+            flex: 1;
+        }
+
+        /* Right side: photo */
+        .modal-photo-side {
+            width: 460px;
+            min-width: 460px;
+            position: relative;
+            background: var(--slate-100);
+            border-left: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border-radius: 0 20px 20px 0;
+        }
+
+        .modal-big-photo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .modal-photo-initials {
+            font-family: 'Outfit', sans-serif;
+            font-size: 5rem;
+            font-weight: 800;
+            color: var(--primary);
+            opacity: 0.35;
+        }
+
+        .modal-photo-frame {
+            position: absolute;
+            inset: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            border-radius: 12px;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .info-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .info-row {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--slate-100);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-icon {
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 14px;
+            font-size: 1.05rem;
+            background: var(--slate-100);
+            border: 1px solid var(--slate-200);
+        }
+
+        .info-content {
+            flex: 1;
+        }
+
+        .info-label {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--slate-500);
+            margin-bottom: 2px;
+            font-weight: 700;
+        }
+
+        .info-value {
+            font-size: 0.95rem;
+            color: var(--slate-900);
+            font-weight: 600;
+            line-height: 1.4;
+        }
+
+        /* Stats Group Sections */
+        .stats-group {
+            margin-top: 16px;
+            border-radius: 12px;
+            background: #FFFFFF;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .stats-group-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 14px;
+            background: var(--slate-50);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .stats-group-header-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--slate-700);
+        }
+
+        .stats-tiles {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
+            gap: 1px;
+            background: var(--border);
+        }
+
+        .stat-tile {
+            text-align: center;
+            padding: 12px 6px;
+            background: #FFFFFF;
+            transition: background 0.2s ease;
+        }
+
+        .stat-tile:hover {
+            background: var(--slate-50);
+        }
+
+        .stat-tile-value {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 800;
+            color: var(--slate-900);
+            line-height: 1.2;
+        }
+
+        .stat-tile-label {
+            font-size: 0.62rem;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--slate-500);
+            margin-top: 2px;
+            font-weight: 600;
+        }
+
+        .stat-tile-icon {
+            font-size: 0.85rem;
+            margin-bottom: 3px;
+        }
+
+        /* No Results */
+        .no-results {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--slate-500);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px 20px;
+            color: var(--slate-400);
+            font-size: 0.82rem;
+            border-top: 1px solid var(--border);
+            position: relative;
+            z-index: 1;
+            font-weight: 500;
+        }
+
+        .footer span {
+            color: var(--primary);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--slate-300); border-radius: 3px; }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(14px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .player-card {
+            animation: fadeInUp 0.3s ease forwards;
+            opacity: 0;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header { padding: 26px 15px 20px; }
+            .header-title { font-size: 1.8rem; }
+            .header-subtitle { font-size: 0.85rem; }
+            .players-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+            .player-avatar { width: 72px; height: 72px; font-size: 1.6rem; }
+            .player-name { font-size: 0.95rem; }
+            .modal { max-width: 95%; }
+            .modal-layout { flex-direction: column-reverse; min-height: auto; }
+            .modal-photo-side {
+                width: 100%;
+                min-width: unset;
+                height: 280px;
+                border-left: none;
+                border-bottom: 1px solid var(--border);
+                border-radius: 20px 20px 0 0;
+            }
+            .modal-details { padding: 22px 18px; }
+            .modal-player-name { font-size: 1.4rem; }
+            .controls-inner { gap: 8px; }
+        }
+
+        /* Auction status badges on cards */
+        .card-auction-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 0.62rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            z-index: 2;
+        }
+        .card-auction-badge.sold {
+            background: var(--green-subtle);
+            color: var(--green);
+            border: 1px solid var(--green-border);
+        }
+        .card-auction-badge.unsold {
+            background: var(--red-subtle);
+            color: var(--red);
+            border: 1px solid var(--red-border);
+        }
+        .card-auction-badge.bidding {
+            background: var(--amber-subtle);
+            color: var(--amber);
+            border: 1px solid var(--amber-border);
+            animation: pulse-badge 1.5s infinite;
+        }
+        @keyframes pulse-badge {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .player-card.sold-card { opacity: 0.75; }
+        .player-card.bidding-card { border-color: var(--primary); box-shadow: 0 0 15px rgba(37, 99, 235, 0.2); }
+
+        .sold-team-name {
+            font-size: 0.7rem;
+            color: var(--green);
+            margin-top: 4px;
+            font-weight: 700;
+        }
+        .card-sold-price {
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.85rem;
+            color: var(--slate-900);
+            margin-top: 2px;
+            font-weight: 700;
+        }
+        .card-special-badge {
+            display: inline-block;
+            padding: 2px 7px;
+            border-radius: 8px;
+            font-size: 0.6rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-top: 5px;
+        }
+        .card-special-badge.icon-badge {
+            background: var(--primary-subtle);
+            color: var(--primary);
+            border: 1px solid var(--primary-border);
+        }
+        .card-special-badge.owner-badge {
+            background: var(--orange-subtle);
+            color: var(--orange);
+            border: 1px solid var(--orange-border);
+        }
+    </style>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div style="position:absolute;top:20px;right:24px;display:flex;gap:10px;align-items:center;">
+            <a href="index.html" style="color:var(--slate-700);text-decoration:none;font-size:0.8rem;font-weight:600;padding:6px 14px;border:1px solid var(--border);border-radius:8px;background:#FFFFFF;box-shadow:0 1px 2px rgba(0,0,0,0.04);">&#8592; Tournaments Hub</a>
+        </div>
+        <div class="logo-container">
+            <div style="width: 48px; height: 48px; border-radius: 12px; background: linear-gradient(135deg, #2563EB, #1D4ED8); display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.3rem; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28);">
+                CB
+            </div>            
+            <div>
+                <h1 class="header-title" id="pageMainTitle">CricBid Player Explorer</h1>
+                <p class="header-subtitle" id="pageMainSubtitle">Player Catalog &amp; Statistics</p>
+                <div id="eventHeaderBadge" style="display:none;margin-top:6px;"><span style="display:inline-block;padding:3px 12px;background:var(--primary-subtle);border:1px solid var(--primary-border);border-radius:12px;color:var(--primary);font-size:0.8rem;font-weight:700;letter-spacing:1px;"></span></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Controls -->
+    <div class="controls-bar" id="controlsBar" style="display:none;">
+        <div class="controls-inner">
+            <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input type="text" id="searchInput" placeholder="Search players by name, skill, team..." autocomplete="off">
+            </div>
+            <select class="filter-select" id="eventFilterSelect" onchange="onEventFilterChange(this.value)">
+                <option value="">All Tournaments</option>
+            </select>
+            <select class="filter-select" id="teamFilter" onchange="applyFilters()">
+                <option value="">All Statuses</option>
+                <option value="__available">Available</option>
+                <option value="__sold">Sold</option>
+                <option value="__unsold">Unsold</option>
+                <option value="__icon">Icon Players</option>
+                <option value="__owner">Owner Players</option>
+                <option value="__wk">Wicket Keepers</option>
+            </select>
+            <div class="player-count" id="playerCount"></div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="players-section" id="mainContent">
+        <div class="loading-container" id="loader">
+            <div class="loader"></div>
+            <p class="loading-text">Loading players...</p>
+        </div>
+    </main>
+
+    <!-- Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="modal">
+            <button class="modal-close" id="modalClose">&times;</button>
+            <div class="modal-layout">
+                <div class="modal-details">
+                    <h2 class="modal-player-name" id="modalName"></h2>
+                    <div id="modalRoleTag"></div>
+                    <div class="modal-body" id="modalBody"></div>
+                </div>
+                <div class="modal-photo-side" id="modalPhotoSide">
+                    <div class="modal-photo-frame"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <span>★</span> CricBid &copy; 2026 — Live Cricket Auction Hub <span>★</span>
+    </footer>
+
+<script>
+        // Google Sheet & Multi-Event config
+        let SHEET_ID = '';
+        let SHEET_URL = '';
+        let selectedEventCode = '';
+        let availableEvents = [];
+
+        let allPlayers = [];
+        let headers = [];
+
+        function parseEventFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const p = urlParams.get('event') || urlParams.get('code') || '';
+            if (p) return p.toUpperCase();
+            const hash = window.location.hash.replace(/^#\/?/, '').trim();
+            if (hash && !hash.includes('/') && hash.length <= 15) {
+                return hash.toUpperCase();
+            }
+            return '';
+        }
+
+        function onEventFilterChange(val) {
+            selectedEventCode = val ? val.toUpperCase() : '';
+            const url = new URL(window.location);
+            if (selectedEventCode) url.searchParams.set('event', selectedEventCode);
+            else url.searchParams.delete('event');
+            window.history.replaceState({}, '', url);
+
+            updateEventHeaderUI();
+            attachFirebaseForSelectedEvent();
+            applyFilters();
+        }
+
+        function updateEventHeaderUI() {
+            const badge = document.getElementById('eventHeaderBadge');
+            const sub = document.getElementById('pageMainSubtitle');
+            if (selectedEventCode) {
+                if (badge) {
+                    badge.style.display = 'block';
+                    badge.firstElementChild.textContent = 'EVENT: ' + selectedEventCode;
+                }
+                if (sub) sub.textContent = 'Event ' + selectedEventCode + ' Player Catalog';
+            } else {
+                if (badge) badge.style.display = 'none';
+                if (sub) sub.textContent = 'All Players Catalog';
+            }
+            const sel = document.getElementById('eventFilterSelect');
+            if (sel) sel.value = selectedEventCode;
+        }
+
+        // Field mapping with icons
+        const fieldConfig = {
+            'name': { icon: '&#128100;', label: 'Name', priority: 1 },
+            'playername': { icon: '&#128100;', label: 'Player Name', priority: 1 },
+            'player name': { icon: '&#128100;', label: 'Player Name', priority: 1 },
+            'mobile': { icon: '&#128222;', label: 'Mobile Number', priority: 2 },
+            'mobile number': { icon: '&#128222;', label: 'Mobile Number', priority: 2 },
+            'mobilenumber': { icon: '&#128222;', label: 'Mobile Number', priority: 2 },
+            'phone': { icon: '&#128222;', label: 'Phone', priority: 2 },
+            'contact': { icon: '&#128222;', label: 'Contact', priority: 2 },
+            'batting profile': { icon: '&#127951;', label: 'Batting Profile', priority: 3 },
+            'battingprofile': { icon: '&#127951;', label: 'Batting Profile', priority: 3 },
+            'batting style': { icon: '&#127951;', label: 'Batting Style', priority: 3 },
+            'batting position': { icon: '&#127942;', label: 'Batting Position', priority: 4 },
+            'battingposition': { icon: '&#127942;', label: 'Batting Position', priority: 4 },
+            'batting order': { icon: '&#127942;', label: 'Batting Order', priority: 4 },
+            'bowling profile': { icon: '&#127936;', label: 'Bowling Profile', priority: 5 },
+            'bowlingprofile': { icon: '&#127936;', label: 'Bowling Profile', priority: 5 },
+            'bowling style': { icon: '&#127936;', label: 'Bowling Style', priority: 5 },
+            'bowling': { icon: '&#127936;', label: 'Bowling', priority: 5 },
+            'wicket keeping': { icon: '&#129518;', label: 'Wicket Keeping', priority: 6 },
+            'wicketkeeping': { icon: '&#129518;', label: 'Wicket Keeping', priority: 6 },
+            'wicket keeper': { icon: '&#129518;', label: 'Wicket Keeper', priority: 6 },
+            'keeper': { icon: '&#129518;', label: 'Keeper', priority: 6 },
+            'wk': { icon: '&#129518;', label: 'Wicket Keeping', priority: 6 },
+            'matches': { icon: '&#127951;', label: 'Matches', priority: 7 },
+            'runs': { icon: '&#127942;', label: 'Runs', priority: 8 },
+            "100's": { icon: '&#11088;', label: "100's", priority: 9 },
+            '100s': { icon: '&#11088;', label: "100's", priority: 9 },
+            "50's": { icon: '&#127941;', label: "50's", priority: 10 },
+            '50s': { icon: '&#127941;', label: "50's", priority: 10 },
+            "30's": { icon: '&#128170;', label: "30's", priority: 11 },
+            '30s': { icon: '&#128170;', label: "30's", priority: 11 },
+            'sr': { icon: '&#9889;', label: 'Strike Rate', priority: 12 },
+            'strike rate': { icon: '&#9889;', label: 'Strike Rate', priority: 12 },
+            'avg': { icon: '&#128200;', label: 'Average', priority: 12.5 },
+            'average': { icon: '&#128200;', label: 'Average', priority: 12.5 },
+            'batting avg': { icon: '&#128200;', label: 'Batting Avg', priority: 12.5 },
+            'batting average': { icon: '&#128200;', label: 'Batting Avg', priority: 12.5 },
+            'wickets': { icon: '&#127936;', label: 'Wickets', priority: 13 },
+            '5 wkts': { icon: '&#128293;', label: '5 Wickets', priority: 14 },
+            '5wkts': { icon: '&#128293;', label: '5 Wickets', priority: 14 },
+            '5 wickets': { icon: '&#128293;', label: '5 Wickets', priority: 14 },
+            '3 wkts': { icon: '&#127775;', label: '3 Wickets', priority: 15 },
+            '3wkts': { icon: '&#127775;', label: '3 Wickets', priority: 15 },
+            '3 wickets': { icon: '&#127775;', label: '3 Wickets', priority: 15 },
+            'economy': { icon: '&#128201;', label: 'Economy', priority: 15.5 },
+            'econ': { icon: '&#128201;', label: 'Economy', priority: 15.5 },
+            'economy rate': { icon: '&#128201;', label: 'Economy', priority: 15.5 },
+            'email': { icon: '&#9993;', label: 'Email', priority: 20 },
+            'team': { icon: '&#128101;', label: 'Team', priority: 21 },
+            'age': { icon: '&#128197;', label: 'Age', priority: 22 },
+            'location': { icon: '&#128205;', label: 'Location', priority: 23 },
+            'jersey': { icon: '&#128085;', label: 'Jersey Number', priority: 24 },
+        };
+
+        // Utility functions
+        function getInitials(name) {
+            if (!name) return '?';
+            const parts = name.trim().split(/\s+/);
+            if (parts.length === 1) return parts[0][0].toUpperCase();
+            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        }
+
+        function getFieldInfo(header) {
+            const key = header.toLowerCase().trim();
+            if (fieldConfig[key]) return fieldConfig[key];
+            // Partial match
+            for (const [k, v] of Object.entries(fieldConfig)) {
+                if (key.includes(k) || k.includes(key)) return v;
+            }
+            return { icon: '&#128196;', label: header, priority: 50 };
+        }
+
+        function isNameField(header) {
+            const key = header.toLowerCase().trim();
+            return key === 'name' || key === 'player name' || key === 'playername' ||
+                   key === 'player' || key.includes('name');
+        }
+
+        function isPhotoField(header) {
+            const key = header.toLowerCase().trim();
+            return key === 'photo' || key === 'image' || key === 'picture' || key === 'pic' ||
+                   key === 'avatar' || key === 'photo url' || key === 'image url' ||
+                   key === 'player photo' || key === 'profile photo' || key === 'profile pic' ||
+                   key === 'dp' || key === 'thumbnail' || key.includes('photo') || key.includes('image');
+        }
+
+        // Fields to hide from player detail popup
+        const hiddenFields = [
+            'ticket price', 'ticketprice',
+            'discount amount', 'discountamount', 'discount',
+            'paid amount', 'paidamount',
+            'status',
+            'paid date', 'paiddate', 'payment date',
+            'qr code', 'qrcode', 'qr',
+            'check in status', 'checkinstatus', 'checkin status', 'check-in status', 'checkin',
+            'eventcode', 'event code', 'event'
+        ];
+
+        function isHiddenField(header) {
+            const key = header.toLowerCase().trim();
+            return hiddenFields.some(h => key === h || key.includes(h));
+        }
+
+        function isClubField(header) {
+            const key = header.toLowerCase().trim();
+            return key === 'club';
+        }
+
+        function getPlayerClub(player) {
+            for (const header of headers) {
+                if (isClubField(header) && player[header]) {
+                    const val = player[header].trim().toLowerCase();
+                    if (val === 'home') return 'home';
+                    if (val === 'away') return 'away';
+                }
+            }
+            return null;
+        }
+
+        function clubIcon(type) {
+            if (type === 'home') return '&#127968;'; // house
+            if (type === 'away') return '&#9992;&#65039;'; // airplane
+            return '';
+        }
+
+        // Batting stats fields
+        const battingStatKeys = ['runs', 'run', "100's", '100s', "50's", '50s', "30's", '30s', 'sr', 'strike rate', 'avg', 'average', 'batting avg', 'batting average'];
+        function isBattingStat(header) {
+            const key = header.toLowerCase().trim();
+            return battingStatKeys.some(k => key === k);
+        }
+
+        // Bowling stats fields
+        const bowlingStatKeys = ['wickets', 'wicket', '5 wkts', '5wkts', '5 wickets', '3 wkts', '3wkts', '3 wickets', 'economy', 'econ', 'economy rate'];
+        function isBowlingStat(header) {
+            const key = header.toLowerCase().trim();
+            return bowlingStatKeys.some(k => key === k);
+        }
+
+        function isStatField(header) {
+            return isBattingStat(header) || isBowlingStat(header);
+        }
+
+        function getPlayerPhoto(player) {
+            for (const header of headers) {
+                if (isPhotoField(header) && player[header]) {
+                    let url = player[header].trim();
+                    if (!url) continue;
+                    // Convert Google Drive share links to direct image URLs
+                    const driveMatch = url.match(/drive\.google\.com\/file\/d\/([^\/]+)/);
+                    if (driveMatch) {
+                        return `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w600`;
+                    }
+                    const driveOpenMatch = url.match(/drive\.google\.com\/open\?id=([^&]+)/);
+                    if (driveOpenMatch) {
+                        return `https://drive.google.com/thumbnail?id=${driveOpenMatch[1]}&sz=w600`;
+                    }
+                    // Convert Google Drive /uc? links
+                    const driveUcMatch = url.match(/drive\.google\.com\/uc\?.*id=([^&]+)/);
+                    if (driveUcMatch) {
+                        return `https://drive.google.com/thumbnail?id=${driveUcMatch[1]}&sz=w600`;
+                    }
+                    return url;
+                }
+            }
+            return null;
+        }
+
+        function getRoleTag(player) {
+            for (const [header, value] of Object.entries(player)) {
+                const key = header.toLowerCase();
+                if ((key.includes('batting') && key.includes('profile')) || key.includes('batting style')) {
+                    return value || '';
+                }
+            }
+            for (const [header, value] of Object.entries(player)) {
+                const key = header.toLowerCase();
+                if (key.includes('bowling') && (key.includes('profile') || key.includes('style'))) {
+                    return value || '';
+                }
+            }
+            return '';
+        }
+
+        function getPlayerName(player) {
+            for (const header of headers) {
+                if (isNameField(header) && player[header]) return player[header];
+            }
+            return Object.values(player)[0] || 'Unknown';
+        }
+
+        // Fetch data from Google Sheet
+        async function fetchPlayers() {
+            try {
+                let response = await fetch(SHEET_URL + '&sheet=Attendee%20List');
+                if (!response.ok) {
+                    response = await fetch(SHEET_URL);
+                }
+                const text = await response.text();
+
+                // Parse JSONP response
+                const jsonStr = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?/);
+                if (!jsonStr) throw new Error('Could not parse response from Google Sheets');
+
+                const data = JSON.parse(jsonStr[1]);
+
+                if (!data.table || !data.table.cols || !data.table.rows) {
+                    throw new Error('No data found in the spreadsheet');
+                }
+
+                // Extract headers
+                headers = data.table.cols.map(col => col.label || col.id || '').filter(h => h);
+
+                // Extract rows
+                allPlayers = data.table.rows.map(row => {
+                    const player = {};
+                    row.c.forEach((cell, i) => {
+                        if (i < headers.length) {
+                            player[headers[i]] = cell ? (cell.v !== null && cell.v !== undefined ? String(cell.v) : '') : '';
+                        }
+                    });
+                    return player;
+                }).filter(p => {
+                    // Filter out empty rows
+                    return Object.values(p).some(v => v && v.trim());
+                });
+
+                if (allPlayers.length === 0) {
+                    throw new Error('No player data found in the spreadsheet');
+                }
+
+                renderPlayers(allPlayers);
+                document.getElementById('controlsBar').style.display = '';
+                updateCount(allPlayers.length);
+                applyAuctionBadges();
+
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                showError(error.message);
+            }
+        }
+
+        function renderPlayers(players) {
+            const main = document.getElementById('mainContent');
+
+            if (players.length === 0) {
+                main.innerHTML = `
+                    <div class="no-results">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <p>No players found matching your search.</p>
+                    </div>`;
+                return;
+            }
+
+            const grid = document.createElement('div');
+            grid.className = 'players-grid';
+
+            players.forEach((player, index) => {
+                const name = getPlayerName(player);
+                const initials = getInitials(name);
+                const role = getRoleTag(player);
+                const photo = getPlayerPhoto(player);
+                const club = getPlayerClub(player);
+
+                const card = document.createElement('div');
+                card.className = 'player-card';
+                card.style.animationDelay = `${Math.min(index * 0.04, 1.5)}s`;
+
+                const avatarContent = photo
+                    ? `<img src="${escapeHtml(photo)}" alt="${escapeHtml(name)}" loading="lazy" onerror="this.parentElement.innerHTML='${initials}'">`
+                    : initials;
+
+                const clubBadgeHtml = club
+                    ? `<span class="club-badge ${club}" title="${club === 'home' ? 'Home' : 'Away'}">${clubIcon(club)}</span>`
+                    : '';
+
+                card.innerHTML = `
+                    ${clubBadgeHtml}
+                    <span class="player-number">#${index + 1}</span>
+                    <div class="player-avatar">${avatarContent}</div>
+                    <div class="player-name">${escapeHtml(name)}</div>
+                    ${role ? `<span class="player-role-tag">${escapeHtml(role)}</span>` : ''}
+                `;
+                card.addEventListener('click', () => openModal(player, index));
+                grid.appendChild(card);
+            });
+
+            main.innerHTML = '';
+            main.appendChild(grid);
+        }
+
+        function openModal(player, index) {
+            const name = getPlayerName(player);
+            const initials = getInitials(name);
+            const photo = getPlayerPhoto(player);
+            const role = getRoleTag(player);
+
+            // Set big photo on right side
+            const photoSide = document.getElementById('modalPhotoSide');
+            if (photo) {
+                photoSide.innerHTML = `<div class="modal-photo-frame"></div><img class="modal-big-photo" src="${escapeHtml(photo)}" alt="${escapeHtml(name)}" onerror="this.remove(); this.parentElement.innerHTML += '<span class=\\'modal-photo-initials\\'>${initials}</span><div class=\\'modal-photo-frame\\'></div>'">`;
+            } else {
+                photoSide.innerHTML = `<div class="modal-photo-frame"></div><span class="modal-photo-initials">${initials}</span>`;
+            }
+
+            // Set name, role tag, and club badge
+            document.getElementById('modalName').textContent = name;
+            const club = getPlayerClub(player);
+            const roleTag = document.getElementById('modalRoleTag');
+            const clubModalHtml = club
+                ? `<span class="club-badge-modal ${club}">${clubIcon(club)} ${club === 'home' ? 'Home' : 'Away'}</span>`
+                : '';
+            roleTag.innerHTML = (role ? `<span class="modal-player-role">${escapeHtml(role)}</span>` : '') + clubModalHtml;
+
+            const body = document.getElementById('modalBody');
+            body.innerHTML = '';
+
+            // Separate fields into regular info, batting stats, bowling stats
+            const allFields = headers
+                .filter(h => !isNameField(h) && !isPhotoField(h) && !isHiddenField(h) && !isClubField(h))
+                .map(h => ({ header: h, value: player[h], ...getFieldInfo(h) }));
+
+            const regularFields = allFields.filter(f => !isStatField(f.header)).sort((a, b) => a.priority - b.priority);
+            const battingFields = allFields.filter(f => isBattingStat(f.header)).sort((a, b) => a.priority - b.priority);
+            const bowlingFields = allFields.filter(f => isBowlingStat(f.header)).sort((a, b) => a.priority - b.priority);
+
+            // Render regular info rows
+            const infoGrid = document.createElement('div');
+            infoGrid.className = 'info-grid';
+            regularFields.forEach(field => {
+                if (!field.value || !field.value.trim()) return;
+                const row = document.createElement('div');
+                row.className = 'info-row';
+                row.innerHTML = `
+                    <div class="info-icon">${field.icon}</div>
+                    <div class="info-content">
+                        <div class="info-label">${escapeHtml(field.header)}</div>
+                        <div class="info-value">${escapeHtml(field.value)}</div>
+                    </div>
+                `;
+                infoGrid.appendChild(row);
+            });
+            body.appendChild(infoGrid);
+
+            // Render Batting Record group
+            const battingWithValues = battingFields.filter(f => f.value && f.value.trim());
+            if (battingWithValues.length > 0) {
+                const group = document.createElement('div');
+                group.className = 'stats-group';
+                group.innerHTML = `
+                    <div class="stats-group-header">
+                        <span class="stats-group-header-icon">&#127951;</span>
+                        <span class="stats-group-header-title">Batting Record</span>
+                    </div>
+                    <div class="stats-tiles">
+                        ${battingWithValues.map(f => `
+                            <div class="stat-tile">
+                                <div class="stat-tile-icon">${f.icon}</div>
+                                <div class="stat-tile-value">${escapeHtml(f.value)}</div>
+                                <div class="stat-tile-label">${escapeHtml(f.header)}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                body.appendChild(group);
+            }
+
+            // Render Bowling Record group
+            const bowlingWithValues = bowlingFields.filter(f => f.value && f.value.trim());
+            if (bowlingWithValues.length > 0) {
+                const group = document.createElement('div');
+                group.className = 'stats-group';
+                group.innerHTML = `
+                    <div class="stats-group-header">
+                        <span class="stats-group-header-icon">&#127936;</span>
+                        <span class="stats-group-header-title">Bowling Record</span>
+                    </div>
+                    <div class="stats-tiles">
+                        ${bowlingWithValues.map(f => `
+                            <div class="stat-tile">
+                                <div class="stat-tile-icon">${f.icon}</div>
+                                <div class="stat-tile-value">${escapeHtml(f.value)}</div>
+                                <div class="stat-tile-label">${escapeHtml(f.header)}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                body.appendChild(group);
+            }
+
+            document.getElementById('modalOverlay').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            document.getElementById('modalOverlay').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function updateCount(count) {
+            document.getElementById('playerCount').innerHTML = `<strong>${count}</strong> Player${count !== 1 ? 's' : ''}`;
+        }
+
+        function showError(message) {
+            document.getElementById('mainContent').innerHTML = `
+                <div class="error-container">
+                    <h2>Unable to Load Data</h2>
+                    <p>${escapeHtml(message)}</p>
+                    <p style="font-size: 0.85rem; opacity: 0.6; margin-bottom: 20px;">Make sure the Google Sheet is publicly accessible (Share > Anyone with the link).</p>
+                    <button class="retry-btn" onclick="location.reload()">Try Again</button>
+                </div>`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Event listeners
+        document.getElementById('modalClose').addEventListener('click', closeModal);
+        document.getElementById('modalOverlay').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('modalOverlay')) closeModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        document.getElementById('searchInput').addEventListener('input', () => applyFilters());
+
+        function getIconOwnerSets() {
+            const teamsArr = auctionData.teams || [];
+            const iconMap = {}; // playerName → teamName
+            const ownerMap = {}; // playerName → teamName
+            teamsArr.forEach(t => {
+                if (t.iconPlayer) iconMap[t.iconPlayer] = t.teamName;
+                if (t.ownerName) ownerMap[t.ownerName] = t.teamName;
+            });
+            return { iconMap, ownerMap };
+        }
+
+        function applyFilters() {
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+            const teamFilter = document.getElementById('teamFilter').value;
+
+            let filtered = allPlayers;
+
+            // Apply Event Filter
+            if (selectedEventCode) {
+                filtered = filtered.filter(p => {
+                    for (const [h, v] of Object.entries(p)) {
+                        const clean = h.toLowerCase().replace(/[\s_-]/g, '');
+                        if (clean === 'eventcode' || clean === 'event') {
+                            const val = (v || '').trim().toUpperCase() || 'ESL2026';
+                            return (val === 'ALL' || val === selectedEventCode);
+                        }
+                    }
+                    return selectedEventCode === 'ESL2026';
+                });
+            }
+
+            // Apply team/status filter
+            if (teamFilter) {
+                const sold = (auctionData.log && auctionData.log.sold) || [];
+                const unsold = (auctionData.log && auctionData.log.unsold) || [];
+                const soldMap = {};
+                sold.forEach(s => { soldMap[s.playerName] = s.team; });
+                const unsoldSet = new Set(unsold.map(u => u.playerName));
+                const soldSet = new Set(sold.map(s => s.playerName));
+                const { iconMap, ownerMap } = getIconOwnerSets();
+
+                if (teamFilter === '__available') {
+                    // Available = not sold, not unsold, not icon, not owner
+                    filtered = filtered.filter(p => {
+                        const name = getPlayerName(p);
+                        return !soldSet.has(name) && !unsoldSet.has(name) && !iconMap[name] && !ownerMap[name];
+                    });
+                } else if (teamFilter === '__sold') {
+                    filtered = filtered.filter(p => soldSet.has(getPlayerName(p)));
+                } else if (teamFilter === '__unsold') {
+                    filtered = filtered.filter(p => unsoldSet.has(getPlayerName(p)));
+                } else if (teamFilter === '__icon') {
+                    filtered = filtered.filter(p => iconMap[getPlayerName(p)]);
+                } else if (teamFilter === '__owner') {
+                    filtered = filtered.filter(p => ownerMap[getPlayerName(p)]);
+                } else if (teamFilter === '__wk') {
+                    filtered = filtered.filter(p => {
+                        for (const h of headers) {
+                            const key = h.toLowerCase().trim();
+                            if (key.includes('wicket') && key.includes('keeper')) {
+                                const val = (p[h] || '').trim().toLowerCase();
+                                if (val === 'yes' || val === 'y') return true;
+                            }
+                        }
+                        return false;
+                    });
+                } else {
+                    // Filter by specific team name — show sold to team + icon/owner of team
+                    filtered = filtered.filter(p => {
+                        const name = getPlayerName(p);
+                        return soldMap[name] === teamFilter || iconMap[name] === teamFilter || ownerMap[name] === teamFilter;
+                    });
+                }
+            }
+
+            // Apply text search
+            if (query) {
+                filtered = filtered.filter(player =>
+                    Object.values(player).some(v => v && v.toLowerCase().includes(query))
+                );
+            }
+
+            renderPlayers(filtered);
+            updateCount(filtered.length);
+            applyAuctionBadges();
+        }
+
+        function populateTeamFilter() {
+            const select = document.getElementById('teamFilter');
+            const teamsArr = auctionData.teams || [];
+            // Remove old team-specific options (keep the fixed status options)
+            const existingTeamOpts = select.querySelectorAll('option[data-team]');
+            existingTeamOpts.forEach(o => o.remove());
+            // Add team options
+            teamsArr.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.teamName;
+                opt.textContent = t.teamName;
+                opt.setAttribute('data-team', 'true');
+                select.appendChild(opt);
+            });
+        }
+
+        // ===================== FIREBASE REAL-TIME =====================
+        let auctionData = { live: null, log: null, teams: null };
+
+        async function loadConfigJson() {
+            const cfgRes = await fetch('config.json');
+            const cfg = await cfgRes.json();
+            SHEET_ID = cfg.sheet_id || '';
+            SHEET_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
+            let fbUrl = cfg.firebase_url || '';
+
+            // If not in config.json, try the Google Sheet Settings tab
+            if (!fbUrl && SHEET_ID) {
+                try {
+                    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=Settings`;
+                    const res = await fetch(url);
+                    const text = await res.text();
+                    const json = JSON.parse(text.substring(47).slice(0, -2));
+                    const rows = json.table.rows;
+                    for (const r of rows) {
+                        const key = r.c[0] && r.c[0].v ? r.c[0].v : '';
+                        const val = r.c[1] && r.c[1].v !== null ? String(r.c[1].v) : '';
+                        if (key === 'firebase_url' && val) fbUrl = val;
+                    }
+                } catch (err) {
+                    console.error('Failed to load settings from Sheet:', err);
+                }
+            }
+            return fbUrl;
+        }
+
+        async function initFirebaseMain() {
+            const fbUrl = await loadConfigJson();
+            if (!fbUrl) return;
+            try {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp({ databaseURL: fbUrl });
+                }
+                const db = firebase.database();
+
+                // Helper: active events only
+                function isEventActive(ev) {
+                    if (!ev) return false;
+                    const st = String(ev.status || '').trim().toLowerCase();
+                    if (['upcoming', 'draft', 'completed', 'inactive', 'archived', 'paused'].includes(st)) {
+                        return false;
+                    }
+                    return true;
+                }
+
+                // Listen to events list (show only active / live events)
+                db.ref('events').on('value', snap => {
+                    const evData = snap.val();
+                    if (evData) {
+                        const raw = Array.isArray(evData) ? evData : Object.values(evData);
+                        availableEvents = raw.filter(isEventActive);
+                        const sel = document.getElementById('eventFilterSelect');
+                        if (sel) {
+                            sel.innerHTML = '<option value="">All Live Events</option>' + availableEvents.map(e => `
+                                <option value="${escapeHtml(e.eventCode)}" ${e.eventCode === selectedEventCode ? 'selected' : ''}>
+                                    ${escapeHtml(e.eventCode)} - ${escapeHtml(e.eventName || e.eventCode)}
+                                </option>
+                            `).join('');
+                        }
+                    }
+                });
+
+                attachFirebaseForSelectedEvent();
+            } catch (err) {
+                console.error('Firebase init error:', err);
+            }
+        }
+
+        
+        let activeFbLogRef = null;
+        let activeFbLiveRef = null;
+        let activeFbTeamsRef = null;
+
+        function attachFirebaseForSelectedEvent() {
+            if (!firebase.apps.length) return;
+            const db = firebase.database();
+            const code = selectedEventCode || 'ESL2026';
+            const evPath = `auctions/${code}`;
+
+            if (activeFbLogRef) activeFbLogRef.off();
+            if (activeFbLiveRef) activeFbLiveRef.off();
+            if (activeFbTeamsRef) activeFbTeamsRef.off();
+
+            activeFbLogRef = db.ref(`${evPath}/log`);
+            activeFbLogRef.on('value', snap => {
+                let val = snap.val();
+                if (!val && code === 'ESL2026') {
+                    db.ref('eslAuction/log').once('value', legSnap => {
+                        auctionData.log = legSnap.val() || { sold: [], unsold: [] };
+                        applyAuctionBadges();
+                        applyFilters();
+                    });
+                } else {
+                    auctionData.log = val || { sold: [], unsold: [] };
+                    applyAuctionBadges();
+                    applyFilters();
+                }
+            });
+
+            activeFbLiveRef = db.ref(`${evPath}/live`);
+            activeFbLiveRef.on('value', snap => {
+                let val = snap.val();
+                if (!val && code === 'ESL2026') {
+                    db.ref('eslAuction/live').once('value', legSnap => {
+                        auctionData.live = legSnap.val();
+                        applyAuctionBadges();
+                    });
+                } else {
+                    auctionData.live = val;
+                    applyAuctionBadges();
+                }
+            });
+
+            activeFbTeamsRef = db.ref(`${evPath}/teams`);
+            activeFbTeamsRef.on('value', snap => {
+                let val = snap.val();
+                if (!val && code === 'ESL2026') {
+                    db.ref('eslAuction/teams').once('value', legSnap => {
+                        auctionData.teams = legSnap.val();
+                        populateTeamFilter();
+                        applyAuctionBadges();
+                    });
+                } else {
+                    auctionData.teams = val;
+                    populateTeamFilter();
+                    applyAuctionBadges();
+                }
+            });
+        }
+
+        function applyAuctionBadges() {
+            const cards = document.querySelectorAll('.player-card');
+            const sold = (auctionData.log && auctionData.log.sold) || [];
+            const unsold = (auctionData.log && auctionData.log.unsold) || [];
+            const soldMap = {};   // name → team
+            const priceMap = {};  // name → price
+            sold.forEach(s => { soldMap[s.playerName] = s.team; priceMap[s.playerName] = s.price; });
+            const unsoldSet = new Set(unsold.map(u => u.playerName));
+            const { iconMap, ownerMap } = getIconOwnerSets();
+            const currentBidding = auctionData.live && auctionData.live.status === 'bidding' && auctionData.live.currentPlayer
+                ? auctionData.live.currentPlayer.name : null;
+
+            cards.forEach(card => {
+                const nameEl = card.querySelector('.player-name');
+                if (!nameEl) return;
+                const name = nameEl.textContent.trim();
+
+                // Remove existing badges & classes
+                card.querySelectorAll('.card-auction-badge, .sold-team-name, .card-sold-price, .card-special-badge').forEach(el => el.remove());
+                card.classList.remove('sold-card', 'bidding-card');
+
+                // --- Icon / Owner badges (always shown if applicable) ---
+                const badgeContainer = nameEl.parentElement;
+                if (iconMap[name]) {
+                    const ib = document.createElement('span');
+                    ib.className = 'card-special-badge icon-badge';
+                    ib.textContent = '⭐ Icon — ' + iconMap[name];
+                    badgeContainer.appendChild(ib);
+                }
+                if (ownerMap[name]) {
+                    const ob = document.createElement('span');
+                    ob.className = 'card-special-badge owner-badge';
+                    ob.textContent = '👑 Owner — ' + ownerMap[name];
+                    badgeContainer.appendChild(ob);
+                }
+
+                // --- Auction status badges ---
+                if (name === currentBidding) {
+                    card.classList.add('bidding-card');
+                    const badge = document.createElement('span');
+                    badge.className = 'card-auction-badge bidding';
+                    badge.textContent = 'LIVE';
+                    card.appendChild(badge);
+                    const liveBid = auctionData.live ? parseFloat(auctionData.live.currentBid) || 0 : 0;
+                    const liveBidder = auctionData.live ? auctionData.live.currentBidder || '' : '';
+                    if (liveBid > 0) {
+                        const bidTag = document.createElement('div');
+                        bidTag.className = 'sold-team-name';
+                        bidTag.style.color = '#f39c12';
+                        bidTag.textContent = '₹' + new Intl.NumberFormat('en-IN').format(liveBid) + (liveBidder ? ' • ' + liveBidder : '');
+                        nameEl.after(bidTag);
+                    }
+                } else if (soldMap[name]) {
+                    card.classList.add('sold-card');
+                    const badge = document.createElement('span');
+                    badge.className = 'card-auction-badge sold';
+                    badge.textContent = 'SOLD';
+                    card.appendChild(badge);
+                    const teamTag = document.createElement('div');
+                    teamTag.className = 'sold-team-name';
+                    teamTag.textContent = soldMap[name];
+                    nameEl.after(teamTag);
+                    // Show sold price
+                    if (priceMap[name]) {
+                        const priceTag = document.createElement('div');
+                        priceTag.className = 'card-sold-price';
+                        priceTag.textContent = '₹' + new Intl.NumberFormat('en-IN').format(priceMap[name]);
+                        teamTag.after(priceTag);
+                    }
+                } else if (unsoldSet.has(name)) {
+                    const badge = document.createElement('span');
+                    badge.className = 'card-auction-badge unsold';
+                    badge.textContent = 'UNSOLD';
+                    card.appendChild(badge);
+                }
+            });
+        }
+
+        // Initialize — load config first, then fetch players and start Firebase
+        (async function() {
+            selectedEventCode = parseEventFromUrl();
+            updateEventHeaderUI();
+            await initFirebaseMain();
+            if (SHEET_URL) fetchPlayers();
+        })();
+    </script>
+</body>
+</html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                

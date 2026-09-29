@@ -1,0 +1,35 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/admin"
+  to = "/admin.html"
+  status = 200
+
+[[redirects]]
+  from = "/team-view"
+  to = "/team-view.html"
+  status = 200
+
+[[redirects]]
+  from = "/public-dashboard"
+  to = "/public-dashboard.html"
+  status = 200
+
+[[redirects]]
+  from = "/eminent-super-league"
+  to = "/eminent-super-league.html"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"

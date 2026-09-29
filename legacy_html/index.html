@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CricBid - Modern Multi-Tournament Cricket Auction Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* CricBid Light Design System */
+            --bg-canvas: #F8FAFC;
+            --bg-surface: #FFFFFF;
+            --bg-surface-subtle: #F1F5F9;
+            --bg-surface-hover: #F8FAFC;
+
+            --primary: #2563EB;
+            --primary-hover: #1D4ED8;
+            --primary-subtle: #EFF6FF;
+            --primary-border: #BFDBFE;
+
+            --emerald: #059669;
+            --emerald-hover: #047857;
+            --emerald-subtle: #ECFDF5;
+            --emerald-border: #A7F3D0;
+
+            --amber: #D97706;
+            --amber-subtle: #FFFBEB;
+            --amber-border: #FDE68A;
+
+            --rose: #DC2626;
+            --rose-subtle: #FEF2F2;
+            --rose-border: #FECACA;
+
+            --slate-900: #0F172A;
+            --slate-800: #1E293B;
+            --slate-700: #334155;
+            --slate-600: #475569;
+            --slate-500: #64748B;
+            --slate-400: #94A3B8;
+            --slate-300: #CBD5E1;
+            --slate-200: #E2E8F0;
+            --slate-100: #F1F5F9;
+
+            --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+            --shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+            --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+            --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.07), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+            --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+            --radius-md: 10px;
+            --radius-lg: 14px;
+            --radius-xl: 18px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-canvas);
+            color: var(--slate-800);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(37, 99, 235, 0.04) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.04) 0px, transparent 50%),
+                radial-gradient(at 50% 100%, rgba(245, 158, 11, 0.03) 0px, transparent 50%);
+        }
+
+        /* ---- Modern Light Navigation Bar ---- */
+        .spa-nav {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border-bottom: 1px solid var(--slate-200);
+            padding: 12px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .nav-brand:hover {
+            transform: scale(1.02);
+        }
+
+        .nav-logo-badge {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #FFFFFF;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 800;
+            font-size: 1.25rem;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28);
+            flex-shrink: 0;
+        }
+
+        .nav-brand-text h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.35rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            line-height: 1.1;
+            color: var(--slate-900);
+        }
+
+        .nav-brand-text h1 span {
+            color: var(--primary);
+        }
+
+        .nav-brand-text p {
+            font-size: 0.72rem;
+            color: var(--slate-500);
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .nav-center-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--slate-100);
+            border: 1px solid var(--slate-200);
+            border-radius: 30px;
+            padding: 5px 16px;
+            transition: all 0.2s;
+        }
+        .nav-center-selector:focus-within {
+            background: #FFFFFF;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        }
+
+        .nav-center-selector label {
+            font-size: 0.7rem;
+            color: var(--slate-500);
+            font-weight: 700;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+        }
+
+        .nav-center-selector select {
+            background: transparent;
+            border: none;
+            color: var(--slate-900);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 600;
+            font-size: 0.84rem;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            list-style: none;
+        }
+
+        .nav-link-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 15px;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            color: var(--slate-600);
+            font-size: 0.84rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .nav-link-btn:hover {
+            background: var(--slate-100);
+            color: var(--slate-900);
+        }
+
+        .nav-link-btn.active {
+            background: var(--primary-subtle);
+            border-color: var(--primary-border);
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .nav-link-btn.admin-btn {
+            background: var(--slate-900);
+            color: #FFFFFF;
+            border-color: var(--slate-900);
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.15);
+        }
+        .nav-link-btn.admin-btn:hover {
+            background: var(--slate-800);
+            border-color: var(--slate-800);
+            transform: translateY(-1px);
+        }
+
+        /* ---- Main SPA View Container ---- */
+        .spa-content-area {
+            flex: 1;
+            position: relative;
+            z-index: 1;
+            padding: 28px 24px;
+            max-width: 1440px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .spa-view {
+            display: none;
+            animation: fadeIn 0.22s ease-out;
+        }
+
+        .spa-view.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ---- Hero Banner ---- */
+        .hero-banner {
+            background: linear-gradient(135deg, #FFFFFF 0%, #F0F7FF 60%, #E0E7FF 100%);
+            border: 1px solid #DBEAFE;
+            border-radius: var(--radius-xl);
+            padding: 36px 38px;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.07), 0 8px 10px -6px rgba(37, 99, 235, 0.04);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+        }
+
+        .hero-content {
+            max-width: 760px;
+            z-index: 2;
+        }
+
+        .hero-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #FFFFFF;
+            border: 1px solid var(--primary-border);
+            color: var(--primary);
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow-xs);
+        }
+
+        .hero-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.25rem;
+            font-weight: 800;
+            color: var(--slate-900);
+            letter-spacing: -0.8px;
+            line-height: 1.2;
+            margin-bottom: 10px;
+        }
+
+        .hero-title span {
+            color: var(--primary);
+            background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-sub {
+            color: var(--slate-600);
+            font-size: 0.98rem;
+            line-height: 1.6;
+        }
+
+        .hero-quick-stats {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .hero-stat-badge {
+            background: #FFFFFF;
+            border: 1px solid var(--slate-200);
+            padding: 8px 14px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--slate-700);
+            box-shadow: var(--shadow-xs);
+        }
+
+        .hero-stat-badge span.dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--emerald);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 22px;
+            flex-wrap: wrap;
+            gap: 14px;
+        }
+
+        .section-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--slate-900);
+            letter-spacing: -0.4px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* ---- Events Cards Grid ---- */
+        .events-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+            gap: 26px;
+        }
+
+        .event-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--slate-200);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .event-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--slate-300);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .event-card.current-active {
+            border: 2px solid var(--primary);
+            box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.15);
+        }
+
+        .event-card-banner-wrapper {
+            position: relative;
+            width: 100%;
+            height: 165px;
+            overflow: hidden;
+            background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+        }
+
+        .event-card-banner-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.4s ease;
+        }
+
+        .event-card:hover .event-card-banner-img {
+            transform: scale(1.04);
+        }
+
+        .event-card-status-pill {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            backdrop-filter: blur(8px);
+        }
+
+        .status-live { 
+            background: var(--emerald-subtle); 
+            color: var(--emerald); 
+            border: 1px solid var(--emerald-border); 
+        }
+        .status-upcoming { 
+            background: var(--amber-subtle); 
+            color: var(--amber); 
+            border: 1px solid var(--amber-border); 
+        }
+        .status-completed { 
+            background: var(--slate-100); 
+            color: var(--slate-600); 
+            border: 1px solid var(--slate-300); 
+        }
+        .status-draft { 
+            background: var(--rose-subtle); 
+            color: var(--rose); 
+            border: 1px solid var(--rose-border); 
+        }
+
+        .event-card-body {
+            padding: 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            flex: 1;
+        }
+
+        .event-title-group {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .event-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--slate-900);
+            line-height: 1.25;
+            letter-spacing: -0.3px;
+        }
+
+        .event-code-tag {
+            background: var(--primary-subtle);
+            border: 1px solid var(--primary-border);
+            color: var(--primary);
+            padding: 3px 9px;
+            border-radius: 6px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            white-space: nowrap;
+        }
+
+        .event-meta-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 0.83rem;
+            color: var(--slate-600);
+        }
+
+        .event-meta-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .event-meta-icon {
+            font-size: 0.95rem;
+            width: 20px;
+            text-align: center;
+            color: var(--slate-500);
+        }
+
+        .event-card-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: auto;
+            padding-top: 16px;
+            border-top: 1px solid var(--slate-200);
+        }
+
+        .event-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 9px 12px;
+            border-radius: var(--radius-md);
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            text-align: center;
+            border: 1px solid transparent;
+        }
+
+        .event-btn-primary {
+            background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+            color: #FFFFFF;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.2);
+        }
+        .event-btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.32);
+        }
+
+        .event-btn-secondary {
+            background: var(--bg-surface);
+            color: var(--slate-700);
+            border-color: var(--slate-200);
+        }
+        .event-btn-secondary:hover {
+            background: var(--primary-subtle);
+            color: var(--primary);
+            border-color: var(--primary-border);
+        }
+
+        .event-btn-full {
+            grid-column: 1 / -1;
+        }
+
+        /* ---- Embed Frame View for Embedded Sub-views ---- */
+        .spa-frame-container {
+            width: 100%;
+            height: calc(100vh - 105px);
+            border: none;
+            border-radius: var(--radius-xl);
+            background: #FFFFFF;
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--slate-200);
+        }
+
+        .spa-frame-header {
+            background: #FFFFFF;
+            border-bottom: 1px solid var(--slate-200);
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.83rem;
+            color: var(--slate-600);
+        }
+
+        .spa-frame-header strong {
+            color: var(--slate-900);
+            font-weight: 700;
+        }
+
+        .spa-embedded-iframe {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #FFFFFF;
+        }
+
+        /* ---- Mobile Responsive ---- */
+        @media (max-width: 900px) {
+            .spa-nav {
+                flex-direction: column;
+                padding: 14px 18px;
+                gap: 12px;
+            }
+            .nav-links {
+                width: 100%;
+                overflow-x: auto;
+                padding-bottom: 4px;
+                justify-content: flex-start;
+            }
+            .events-grid {
+                grid-template-columns: 1fr;
+            }
+            .hero-banner {
+                padding: 24px;
+            }
+        }
+    </style>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+</head>
+<body>
+
+    <!-- CricBid SPA Navigation -->
+    <nav class="spa-nav">
+        <a class="nav-brand" href="#/">
+            <div class="nav-logo-badge">
+                CB
+            </div>
+            <div class="nav-brand-text">
+                <h1>Cric<span>Bid</span></h1>
+                <p>Live Cricket Auction Platform</p>
+            </div>
+        </a>
+
+        <ul class="nav-links">
+            <li><a class="nav-link-btn active" id="btnNavEvents" href="#/">🏆 Tournaments</a></li>
+            <li><a class="nav-link-btn" id="btnNavTeam" href="#/team-view">👥 Team Portal</a></li>
+            <li><a class="nav-link-btn admin-btn" id="btnNavAdmin" href="admin.html" target="_blank">⚙️ Admin Console</a></li>
+        </ul>
+    </nav>
+
+    <!-- Main Dynamic View Area -->
+    <main class="spa-content-area">
+
+        <!-- VIEW 1: Tournaments / Events Hub -->
+        <section class="spa-view active" id="view-events">
+            <div class="hero-banner">
+                <div class="hero-content">
+                    <div class="hero-pill">
+                        ⚡ Real-Time Auction Management
+                    </div>
+                    <h2 class="hero-title">Cricket League Auctions, <span>Streamlined</span>.</h2>
+                    <p class="hero-sub">Welcome to CricBid. Host and manage concurrent cricket tournament auctions with live real-time bidding, spectator stages, franchise owner consoles, and automated squad tracking.</p>
+                    
+                    <div class="hero-quick-stats">
+                        <div class="hero-stat-badge">
+                            <span class="dot"></span> Multi-Auction Ready
+                        </div>
+                        <div class="hero-stat-badge">
+                            ⚡ Instant Bid Synchronization
+                        </div>
+                        <div class="hero-stat-badge">
+                            📊 Live Purse &amp; Squad Accounting
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-header">
+                <div class="section-title">
+                    <span>⚡</span> Active &amp; Live Tournaments
+                </div>
+                <div style="display:flex;gap:10px;">
+                    <a href="admin.html" target="_blank" class="event-btn event-btn-primary">+ Add New Tournament (Admin)</a>
+                </div>
+            </div>
+
+            <div class="events-grid" id="eventsGridContainer">
+                <div style="color:var(--slate-500);padding:30px;text-align:center;grid-column:1/-1;">Loading tournament events...</div>
+            </div>
+        </section>
+
+        <!-- VIEW 2: Embedded View (Public Dashboard / Team View / Players) -->
+        <section class="spa-view" id="view-embedded">
+            <div class="spa-frame-container">
+                <div class="spa-frame-header">
+                    <div>
+                        Current Tournament: <strong id="frameEventTitle">ESL2026</strong>
+                        <span id="frameEventBadge" style="margin-left:8px;padding:3px 9px;border-radius:6px;background:var(--primary-subtle);color:var(--primary);font-weight:700;font-size:0.75rem;"></span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <button onclick="popoutCurrentFrame()" style="background:#FFFFFF;border:1px solid var(--slate-300);border-radius:6px;color:var(--slate-700);padding:4px 10px;font-size:0.75rem;cursor:pointer;font-weight:600;">↗ Open Fullscreen</button>
+                        <a href="#/" style="color:var(--slate-500);text-decoration:none;font-weight:700;font-size:1.1rem;padding:0 4px;">&times;</a>
+                    </div>
+                </div>
+                <iframe class="spa-embedded-iframe" id="embeddedIframe" src="about:blank"></iframe>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+    // ===================== SPA STATE & CONFIG =====================
+    let SHEET_ID = '';
+    let API_URL = '';
+    let FIREBASE_URL = '';
+    let db = null;
+    let eventsList = [];
+    let selectedEventCode = 'ESL2026';
+
+    // ===================== INITIALIZATION =====================
+    async function initApp() {
+        // 1. Load config
+        try {
+            const cfgRes = await fetch('config.json');
+            const cfg = await cfgRes.json();
+            SHEET_ID = cfg.sheet_id || '';
+            API_URL = cfg.apps_script_url || '';
+            FIREBASE_URL = cfg.firebase_url || '';
+
+            if (FIREBASE_URL) {
+                if (!firebase.apps.length) {
+                    firebase.initializeApp({ databaseURL: FIREBASE_URL });
+                }
+                db = firebase.database();
+            }
+        } catch (e) {
+            console.warn('Config load error:', e);
+        }
+
+        // 2. Fetch events from API & Firebase
+        await loadEvents();
+
+        // 3. Attach Firebase listener for real-time event updates (active / live events only)
+        if (db) {
+            db.ref('events').on('value', snap => {
+                const data = snap.val();
+                if (data) {
+                    const rawList = Array.isArray(data) ? data : Object.values(data);
+                    eventsList = rawList.filter(isEventActive);
+                    renderEventsGrid();
+                }
+            });
+        }
+
+        // 4. Setup Client Router
+        window.addEventListener('hashchange', handleRouting);
+        window.addEventListener('popstate', handleRouting);
+        handleRouting();
+    }
+
+    // Helper: only show active/live events on public screens
+    function isEventActive(ev) {
+        if (!ev) return false;
+        const st = String(ev.status || '').trim().toLowerCase();
+        if (['upcoming', 'draft', 'completed', 'inactive', 'archived', 'paused'].includes(st)) {
+            return false;
+        }
+        return true;
+    }
+
+    // ===================== EVENT DATA =====================
+    async function loadEvents() {
+        if (API_URL) {
+            try {
+                const url = new URL(API_URL);
+                url.searchParams.set('action', 'getEvents');
+                const res = await (await fetch(url.toString())).json();
+                if (res && res.events && res.events.length > 0) {
+                    eventsList = res.events.filter(isEventActive);
+                }
+            } catch(e) {
+                console.warn('Events fetch error:', e);
+            }
+        }
+
+        if (eventsList.length === 0) {
+            eventsList = [{
+                eventName: 'Eminent Super League 2026',
+                eventCode: 'ESL2026',
+                startDate: '2026-03-01',
+                endDate: '2026-03-31',
+                venue: 'Sports Arena',
+                registrationFee: 'Free',
+                eventContacts: 'admin@cricbid.live',
+                bannerUrl: 'img/logo-red.png',
+                status: 'Live'
+            }];
+        }
+
+        renderEventsGrid();
+    }
+
+    function renderEventsGrid() {
+        const container = document.getElementById('eventsGridContainer');
+        if (!container) return;
+
+        const liveEvents = eventsList.filter(isEventActive);
+
+        if (liveEvents.length === 0) {
+            container.innerHTML = '<div style="color:var(--slate-500);text-align:center;padding:48px 20px;grid-column:1/-1;background:#FFFFFF;border-radius:16px;border:1px solid var(--border);"><h3 style="color:var(--slate-700);margin:0 0 8px 0;font-size:1.15rem;">No Live Tournaments Active</h3><p style="margin:0;font-size:0.9rem;">There are no active auctions right now. Please check back when a tournament goes live!</p></div>';
+            return;
+        }
+
+        container.innerHTML = liveEvents.map(ev => {
+            const isCurrent = ev.eventCode === selectedEventCode;
+            const statusClass = (ev.status || '').toLowerCase() === 'live' ? 'status-live' :
+                                (ev.status || '').toLowerCase() === 'upcoming' ? 'status-upcoming' :
+                                (ev.status || '').toLowerCase() === 'draft' ? 'status-draft' : 'status-completed';
+
+            const bUrl = (ev.bannerUrl || '').trim();
+            const m = bUrl.match(/\/d\/([a-zA-Z0-9_-]{20,})/i) || bUrl.match(/[?&]id=([a-zA-Z0-9_-]{20,})/i);
+            const driveFileId = m ? m[1] : '';
+            const displaySrc = (bUrl.startsWith('data:') || bUrl.startsWith('http'))
+                ? (driveFileId && !bUrl.startsWith('data:') ? `https://drive.google.com/thumbnail?id=${driveFileId}&sz=w600` : bUrl)
+                : bUrl;
+            const bannerContent = displaySrc
+                ? `<img src="${esc(displaySrc)}" class="event-card-banner-img" alt="${esc(ev.eventName)}" onerror="this.outerHTML='<div style=\\'width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-family:Outfit;font-weight:700;font-size:1.8rem;color:#FFFFFF;background:linear-gradient(135deg, #1E293B, #0F172A);\\'>${esc(ev.eventCode)}</div>';" />`
+                : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-family:'Outfit',sans-serif;font-weight:700;font-size:1.8rem;color:#FFFFFF;background:linear-gradient(135deg, #1E293B, #0F172A);">${esc(ev.eventCode)}</div>`;
+
+            return `
+                <div class="event-card ${isCurrent ? 'current-active' : ''}">
+                    <div class="event-card-banner-wrapper">
+                        ${bannerContent}
+                        <span class="event-card-status-pill ${statusClass}">${esc(ev.status || 'Active')}</span>
+                    </div>
+
+                    <div class="event-card-body">
+                        <div class="event-title-group">
+                            <h3 class="event-title">${esc(ev.eventName)}</h3>
+                            <span class="event-code-tag">${esc(ev.eventCode)}</span>
+                        </div>
+
+                        <div class="event-meta-list">
+                            ${ev.startDate || ev.endDate ? `
+                                <div class="event-meta-row">
+                                    <span class="event-meta-icon">🗓️</span>
+                                    <span>${esc(ev.startDate || '')} ${ev.endDate ? 'to ' + esc(ev.endDate) : ''}</span>
+                                </div>
+                            ` : ''}
+                            ${ev.venue ? `
+                                <div class="event-meta-row">
+                                    <span class="event-meta-icon">📍</span>
+                                    <span>${esc(ev.venue)}</span>
+                                </div>
+                            ` : ''}
+                            ${ev.registrationFee ? `
+                                <div class="event-meta-row">
+                                    <span class="event-meta-icon">💵</span>
+                                    <span>Fee: ${esc(ev.registrationFee)}</span>
+                                </div>
+                            ` : ''}
+                            ${ev.eventContacts ? `
+                                <div class="event-meta-row">
+                                    <span class="event-meta-icon">📞</span>
+                                    <span>${esc(ev.eventContacts)}</span>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <div class="event-card-actions">
+                            <a class="event-btn event-btn-primary" href="#/public-dashboard/${encodeURIComponent(ev.eventCode)}" onclick="selectEvent('${esc(ev.eventCode)}')">📺 Spectator View</a>
+                            <a class="event-btn event-btn-secondary" href="#/team-view/${encodeURIComponent(ev.eventCode)}" onclick="selectEvent('${esc(ev.eventCode)}')">👥 Team Bidding</a>
+                            <a class="event-btn event-btn-secondary" href="#/players/${encodeURIComponent(ev.eventCode)}" onclick="selectEvent('${esc(ev.eventCode)}')">👤 View Players</a>
+                            <a class="event-btn event-btn-secondary" href="admin.html?event=${encodeURIComponent(ev.eventCode)}" target="_blank">⚙️ Manage Auction</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function selectEvent(code) {
+        if (!code) return;
+        selectedEventCode = code.toUpperCase();
+        renderEventsGrid();
+    }
+
+    // ===================== CLIENT-SIDE ROUTER =====================
+    function handleRouting() {
+        const hash = window.location.hash || '#/';
+        const cleanPath = hash.replace(/^#\/?/, '');
+        const segments = cleanPath.split('/').filter(Boolean);
+        const route = segments[0] || '';
+        const paramCode = segments[1] ? segments[1].toUpperCase() : '';
+
+        // Reset nav button active states
+        document.querySelectorAll('.nav-link-btn').forEach(b => b.classList.remove('active'));
+
+        if (paramCode) {
+            selectedEventCode = paramCode;
+        }
+
+        const viewEvents = document.getElementById('view-events');
+        const viewEmbedded = document.getElementById('view-embedded');
+        const iframe = document.getElementById('embeddedIframe');
+        const frameTitle = document.getElementById('frameEventTitle');
+        const frameBadge = document.getElementById('frameEventBadge');
+
+        if (route === '' || route === 'events') {
+            // View: Events Hub
+            const b = document.getElementById('btnNavEvents');
+            if (b) b.classList.add('active');
+            viewEvents.classList.add('active');
+            viewEmbedded.classList.remove('active');
+            iframe.src = 'about:blank';
+        } else if (route === 'public-dashboard' || route === 'public_dashboard' || route === 'dashboard') {
+            // View: Public Dashboard for event
+            viewEvents.classList.remove('active');
+            viewEmbedded.classList.add('active');
+            const targetCode = paramCode || selectedEventCode;
+            frameTitle.textContent = 'Spectator Stage - ' + targetCode;
+            frameBadge.textContent = targetCode;
+            iframe.src = `public-dashboard.html?event=${encodeURIComponent(targetCode)}`;
+        } else if (route === 'team-view' || route === 'team_view' || route === 'teamview') {
+            // View: Team View for event
+            const b = document.getElementById('btnNavTeam');
+            if (b) b.classList.add('active');
+            viewEvents.classList.remove('active');
+            viewEmbedded.classList.add('active');
+            const targetCode = paramCode || selectedEventCode;
+            frameTitle.textContent = 'Team Portal - ' + targetCode;
+            frameBadge.textContent = targetCode;
+            iframe.src = `team-view.html?event=${encodeURIComponent(targetCode)}`;
+        } else if (route === 'players') {
+            // View: Player Catalog for event
+            viewEvents.classList.remove('active');
+            viewEmbedded.classList.add('active');
+            const targetCode = paramCode || selectedEventCode;
+            frameTitle.textContent = 'Player Catalog - ' + targetCode;
+            frameBadge.textContent = targetCode;
+            iframe.src = `eminent-super-league.html?event=${encodeURIComponent(targetCode)}`;
+        } else {
+            // Fallback to events
+            viewEvents.classList.add('active');
+            viewEmbedded.classList.remove('active');
+        }
+    }
+
+    function navigate(hash) {
+        window.location.hash = hash;
+    }
+
+    function popoutCurrentFrame() {
+        const iframe = document.getElementById('embeddedIframe');
+        if (iframe && iframe.src && iframe.src !== 'about:blank') {
+            window.open(iframe.src, '_blank');
+        }
+    }
+
+    function esc(text) {
+        if (!text) return '';
+        const d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
+    }
+
+    // Start App
+    window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>

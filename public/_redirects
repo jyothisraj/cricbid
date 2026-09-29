@@ -1,0 +1,8 @@
+# Direct shortcuts to standalone tournament consoles
+/admin                 /admin.html             200
+/team-view             /team-view.html         200
+/public-dashboard       /public-dashboard.html   200
+/eminent-super-league  /eminent-super-league.html 200
+
+# SPA fallback for React router
+/*                     /index.html             200
