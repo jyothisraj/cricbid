@@ -537,23 +537,8 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
                       </div>
                     )}
 
-                    {/* Bid Controls: Bid Base Price, +1000, +2000, +5000, Max Amount */}
+                    {/* Bid Controls: +1000, +2000, +5000, +10000, Max Amount */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '10px' }}>
-                      <button 
-                        className="btn btn-primary" 
-                        style={{ 
-                          padding: '12px 6px', 
-                          fontSize: '0.92rem', 
-                          fontWeight: 800,
-                          background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
-                          borderColor: '#2563EB'
-                        }}
-                        onClick={handleBidBasePrice}
-                        id="btnPlaceBidBase"
-                        disabled={isMyBid || hasBidder || (basePrice > maxBidAmount)}
-                      >
-                        🎯 Base ({formatNum(basePrice)})
-                      </button>
                       <button 
                         className="btn btn-outline" 
                         style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
@@ -580,6 +565,15 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
                         disabled={isMyBid || (currentBidAmount + 5000 > maxBidAmount)}
                       >
                         ⚡ +₹5,000
+                      </button>
+                      <button 
+                        className="btn btn-gold" 
+                        style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
+                        onClick={() => handlePlaceBid(10000)}
+                        id="btnPlaceBid10k"
+                        disabled={isMyBid || (currentBidAmount + 10000 > maxBidAmount)}
+                      >
+                        ⚡ +₹10,000
                       </button>
                       <button 
                         className="btn btn-primary" 

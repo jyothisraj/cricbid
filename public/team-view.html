@@ -1950,8 +1950,8 @@ function renderLiveBanner(data) {
         const teamBlockedInit = loggedInTeam && disabledTeamsInit.includes(loggedInTeam.teamName);
         const pickDisabled = !noBidYet || timedOut || teamBlockedInit;
 
-        // Multiple bid buttons: 1000, 2000, 5000
-        const bidAmounts = [1000, 2000, 5000];
+        // Multiple bid buttons: 1000, 2000, 5000, 10000
+        const bidAmounts = [1000, 2000, 5000, 10000];
         const bidButtonsHtml = bidAmounts.map(amt => {
             const newBid = currentBid + amt;
             let disabled = noBidYet || isMyBid || newBid > maxBid || timedOut || teamBlockedInit;
@@ -1984,11 +1984,10 @@ function renderLiveBanner(data) {
                 ${maxBidHtml}
             `;
         } else {
-            // Someone bid — show bid buttons with disabled base price indicator
+            // Someone bid — show bid buttons (+1000, +2000, +5000, +10000)
             bidSectionHtml = `
                 ${bidHtml}
                 <div class="bid-buttons-row">
-                    <button class="bid-btn" style="background:#E2E8F0;color:#64748B;border:1px solid #CBD5E1;box-shadow:none;cursor:not-allowed;min-width:auto;padding:12px 14px;" disabled>Base: ${formatNum(baseValue)}</button>
                     ${bidButtonsHtml}
                 </div>
                 <div class="bid-buttons-row" style="margin-top:8px;">${maxBidBtnHtml}</div>
