@@ -4,10 +4,9 @@ import {
   listenTimer, 
   listenTeams, 
   listenAuctionLog,
-  formatNum,
-  formatImageUrl,
-  getDriveFileId
+  formatNum
 } from '../services/api';
+import ImageWithFallback from '../components/ImageWithFallback';
 
 export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
   const currentEvent = (eventCode || 'ESL2026').toUpperCase();
@@ -90,28 +89,15 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
                   overflow: 'hidden',
                   background: '#0F172A',
                   border: '2px solid var(--border-medium)',
-                  boxShadow: 'var(--shadow-lg)'
+                  boxShadow: 'var(--shadow-lg)',
+                  flexShrink: 0
                 }}>
-                  {cp.Photo || cp.photoUrl ? (
-                    <img 
-                      src={formatImageUrl(cp.Photo || cp.photoUrl)} 
-                      alt={cp.Name || cp.name} 
-                      onError={(e) => {
-                        const fid = getDriveFileId(cp.Photo || cp.photoUrl);
-                        if (fid && !e.currentTarget.dataset.tried) {
-                          e.currentTarget.dataset.tried = '1';
-                          e.currentTarget.src = `https://drive.google.com/thumbnail?id=${fid}&sz=w600`;
-                        } else {
-                          e.currentTarget.style.display = 'none';
-                          if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
-                        }
-                      }}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                    />
-                  ) : null}
-                  <div style={{ width: '100%', height: '100%', display: (cp.Photo || cp.photoUrl) ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', color: 'var(--slate-500)', fontWeight: 800 }}>
-                    {(cp.Name || cp.name || '?')[0]}
-                  </div>
+                  <ImageWithFallback
+                    src={cp.Photo || cp.photoUrl}
+                    alt={cp.Name || cp.name}
+                    size="w600"
+                    fontSize="2.5rem"
+                  />
                 </div>
 
                 <div style={{ flex: 1 }}>
@@ -190,20 +176,14 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
                     <tr key={t.teamName}>
                       <td style={{ fontWeight: 700, color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {t.logoUrl ? (
-                          <img 
-                            src={formatImageUrl(t.logoUrl)} 
-                            alt={t.teamName} 
-                            onError={(e) => {
-                              const fid = getDriveFileId(t.logoUrl);
-                              if (fid && !e.currentTarget.dataset.tried) {
-                                e.currentTarget.dataset.tried = '1';
-                                e.currentTarget.src = `https://drive.google.com/thumbnail?id=${fid}&sz=w100`;
-                              } else {
-                                e.currentTarget.style.display = 'none';
-                              }
-                            }}
-                            style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }} 
-                          />
+                          <div style={{ width: '24px', height: '24px', borderRadius: '4px', overflow: 'hidden', flexShrink: 0 }}>
+                            <ImageWithFallback
+                              src={t.logoUrl}
+                              alt={t.teamName}
+                              size="w100"
+                              fontSize="0.75rem"
+                            />
+                          </div>
                         ) : null}
                         <span>{t.teamName}</span>
                       </td>

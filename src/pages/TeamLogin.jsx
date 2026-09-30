@@ -6,10 +6,9 @@ import {
   listenTeams, 
   listenAuctionLog,
   getDb,
-  formatNum,
-  formatImageUrl,
-  getDriveFileId
+  formatNum
 } from '../services/api';
+import ImageWithFallback from '../components/ImageWithFallback';
 
 export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
   const currentEvent = (eventCode || 'ESL2026').toUpperCase();
@@ -278,25 +277,13 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
         gap: '16px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          {currentTeamInfo.logoUrl ? (
-            <img 
-              src={formatImageUrl(currentTeamInfo.logoUrl)} 
-              alt={currentTeamInfo.teamName} 
-              onError={(e) => {
-                const fid = getDriveFileId(currentTeamInfo.logoUrl);
-                if (fid && !e.currentTarget.dataset.tried) {
-                  e.currentTarget.dataset.tried = '1';
-                  e.currentTarget.src = `https://drive.google.com/thumbnail?id=${fid}&sz=w600`;
-                } else {
-                  e.currentTarget.style.display = 'none';
-                  if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
-                }
-              }}
-              style={{ width: '48px', height: '48px', borderRadius: '10px', objectFit: 'cover', background: '#0F172A' }} 
+          <div style={{ width: '48px', height: '48px', borderRadius: '10px', overflow: 'hidden', background: 'var(--primary)', flexShrink: 0 }}>
+            <ImageWithFallback
+              src={currentTeamInfo.logoUrl}
+              alt={currentTeamInfo.teamName}
+              size="w300"
+              fontSize="1.2rem"
             />
-          ) : null}
-          <div style={{ width: '48px', height: '48px', borderRadius: '10px', background: 'var(--primary)', color: '#FFF', display: currentTeamInfo.logoUrl ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 800 }}>
-            {(currentTeamInfo.teamName || 'T')[0]}
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -364,26 +351,12 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
                 flexWrap: 'wrap'
               }}>
                 <div style={{ width: '110px', height: '110px', borderRadius: '12px', overflow: 'hidden', background: '#0F172A', border: '1px solid var(--border-medium)', flexShrink: 0 }}>
-                  {cp.Photo || cp.photoUrl ? (
-                    <img 
-                      src={formatImageUrl(cp.Photo || cp.photoUrl)} 
-                      alt={cp.Name || cp.name} 
-                      onError={(e) => {
-                        const fid = getDriveFileId(cp.Photo || cp.photoUrl);
-                        if (fid && !e.currentTarget.dataset.tried) {
-                          e.currentTarget.dataset.tried = '1';
-                          e.currentTarget.src = `https://drive.google.com/thumbnail?id=${fid}&sz=w600`;
-                        } else {
-                          e.currentTarget.style.display = 'none';
-                          if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
-                        }
-                      }}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                    />
-                  ) : null}
-                  <div style={{ width: '100%', height: '100%', display: (cp.Photo || cp.photoUrl) ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--slate-400)', fontWeight: 700, fontSize: '1.4rem' }}>
-                    {(cp.Name || cp.name || '?')[0]}
-                  </div>
+                  <ImageWithFallback
+                    src={cp.Photo || cp.photoUrl}
+                    alt={cp.Name || cp.name}
+                    size="w600"
+                    fontSize="1.6rem"
+                  />
                 </div>
 
                 <div style={{ flex: 1 }}>

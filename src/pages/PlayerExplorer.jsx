@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { listenPlayers, listenAuctionLog, formatNum, formatImageUrl, getDriveFileId } from '../services/api';
+import { listenPlayers, listenAuctionLog, formatNum } from '../services/api';
+import ImageWithFallback from '../components/ImageWithFallback';
 
 export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
   const currentEvent = (eventCode || 'ESL2026').toUpperCase();
@@ -130,7 +131,6 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
               <div key={idx} className="glass-panel" style={{ padding: '18px', display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', gap: '14px', marginBottom: '14px', alignItems: 'center' }}>
                   <div 
-                    onClick={() => photo && setSelectedPhoto(photo)}
                     style={{
                       width: '60px',
                       height: '60px',
@@ -138,30 +138,16 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
                       overflow: 'hidden',
                       background: '#0F172A',
                       flexShrink: 0,
-                      cursor: photo ? 'pointer' : 'default',
-                      border: '1px solid var(--border-medium)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
+                      cursor: rawPhoto ? 'pointer' : 'default',
+                      border: '1px solid var(--border-medium)'
                     }}
                   >
-                    {photo ? (
-                      <img 
-                        src={photo} 
-                        alt={name} 
-                        onError={(e) => {
-                          if (driveId && !e.currentTarget.dataset.tried) {
-                            e.currentTarget.dataset.tried = '1';
-                            e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveId}&sz=w600`;
-                          } else {
-                            e.currentTarget.style.display = 'none';
-                            if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'inline';
-                          }
-                        }}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                      />
-                    ) : null}
-                    <span style={{ fontWeight: 800, color: 'var(--slate-400)', display: photo ? 'none' : 'inline' }}>{name[0]}</span>
+                    <ImageWithFallback
+                      src={rawPhoto}
+                      alt={name}
+                      size="w600"
+                      onClick={(fullSrc) => setSelectedPhoto(fullSrc)}
+                    />
                   </div>
 
                   <div>
@@ -215,7 +201,7 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
           }}
         >
           <div style={{ maxWidth: '480px', width: '100%', position: 'relative' }}>
-            <img src={selectedPhoto} alt="Player" style={{ width: '100%', borderRadius: '16px', boxShadow: 'var(--shadow-lg)' }} />
+            <img src={selectedPhoto} alt="Player" referrerPolicy="no-referrer" style={{ width: '100%', borderRadius: '16px', boxShadow: 'var(--shadow-lg)' }} />
           </div>
         </div>
       )}
