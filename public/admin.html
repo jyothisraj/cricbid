@@ -2089,6 +2089,8 @@ function calculateTeamPurseRemaining(t, eventCode) {
 function fbBroadcastTeams() {
     if (!db) return;
     const evTeams = getActiveEventTeams();
+    const ev = allEvents.find(e => (e.eventCode || '').toUpperCase() === (activeEventCode || '').toUpperCase());
+    const evMaxPlayers = (ev && ev.maxPlayers !== undefined && ev.maxPlayers !== null && ev.maxPlayers !== '') ? parseInt(ev.maxPlayers) : (parseInt(settings.max_players_per_team) || 11);
     const teamsData = evTeams.map(t => {
         const ownersList = getTeamOwners(t);
         const retainedList = getTeamRetainedPlayers(t);
@@ -2109,7 +2111,7 @@ function fbBroadcastTeams() {
             numRetainedPlayers: t.numRetainedPlayers !== undefined ? t.numRetainedPlayers : retainedList.length,
             retainedDeduction: retainedDed,
             purseRemaining: currentPurse,
-            maxPlayers: t.maxPlayers || 11
+            maxPlayers: evMaxPlayers || parseInt(t.maxPlayers) || 11
         };
     });
     db.ref(`auctions/${activeEventCode}/teams`).set(teamsData).catch(() => {});
@@ -5284,7 +5286,13 @@ async function saveEventSettings() {
     ev.timerIncrement = inc;
     ev.maxOwners = mo;
 
-    try { localStorage.setItem('cricket_events', JSON.stringify(allEvents)); } catch(e) {}
+    allTeams.forEach(t => {
+        if ((t.eventCode || 'ESL2026').toUpperCase() === code) {
+            t.maxPlayers = mp;
+        }
+    });
+
+    try { localStorage.setItem('cricket_events', JSON.stringify(allEvents)); localStorage.setItem('cricket_teams', JSON.stringify(allTeams)); } catch(e) {}
 
     if (db) {
         await db.ref('events/' + code).update({

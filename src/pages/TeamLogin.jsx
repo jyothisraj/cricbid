@@ -6,6 +6,7 @@ import {
   listenTeams, 
   listenAuctionLog,
   listenPlayers,
+  listenAuctionSettings,
   getDb,
   formatNum
 } from '../services/api';
@@ -29,6 +30,7 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
   const [allTeams, setAllTeams] = useState([]);
   const [allPlayers, setAllPlayers] = useState([]);
   const [auctionLog, setAuctionLog] = useState({ sold: [], unsold: [] });
+  const [auctionSettings, setAuctionSettings] = useState(null);
   const [bidAmount, setBidAmount] = useState('');
 
   // Check existing session
@@ -53,12 +55,14 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
     let unsubTeams = () => {};
     let unsubLog = () => {};
     let unsubPlayers = () => {};
+    let unsubSettings = () => {};
 
     listenLiveAuction(currentEvent, data => setLiveData(data)).then(u => { unsubLive = u; });
     listenTimer(currentEvent, data => setTimerData(data)).then(u => { unsubTimer = u; });
     listenTeams(currentEvent, list => setAllTeams(list)).then(u => { unsubTeams = u; });
     listenAuctionLog(currentEvent, log => setAuctionLog(log)).then(u => { unsubLog = u; });
     listenPlayers(currentEvent, list => setAllPlayers(list)).then(u => { unsubPlayers = u; });
+    listenAuctionSettings(currentEvent, s => setAuctionSettings(s)).then(u => { unsubSettings = u; });
 
     return () => {
       unsubLive();
@@ -66,6 +70,7 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
       unsubTeams();
       unsubLog();
       unsubPlayers();
+      unsubSettings();
     };
   }, [loggedInTeam, currentEvent]);
 
@@ -317,14 +322,23 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
     (s.team || '').toLowerCase() === (currentTeamInfo.teamName || '').toLowerCase()
   );
 
+  const ownerList = Array.isArray(currentTeamInfo.owners) && currentTeamInfo.owners.length > 0
+    ? currentTeamInfo.owners.filter(Boolean)
+    : (currentTeamInfo.ownerName ? currentTeamInfo.ownerName.split(',').map(s => s.trim()).filter(Boolean) : []);
+
+  const iconList = Array.isArray(currentTeamInfo.iconPlayers) && currentTeamInfo.iconPlayers.length > 0
+    ? currentTeamInfo.iconPlayers.filter(Boolean)
+    : (currentTeamInfo.iconPlayer ? currentTeamInfo.iconPlayer.split(',').map(s => s.trim()).filter(Boolean) : []);
+
   const retainedList = Array.isArray(currentTeamInfo.retainedPlayers) && currentTeamInfo.retainedPlayers.length > 0
     ? currentTeamInfo.retainedPlayers.filter(Boolean)
     : (currentTeamInfo.retainedPlayer ? currentTeamInfo.retainedPlayer.split(',').map(s => s.trim()).filter(Boolean) : []);
 
-  const totalSquadCount = myPlayers.length + retainedList.length;
+  // Pre-assigned members (Owner, Icon, Retained) count towards the squad from the beginning
+  const totalSquadCount = ownerList.length + iconList.length + retainedList.length + myPlayers.length;
 
-  const minPlayerValue = 10000;
-  const maxPlayers = currentTeamInfo?.maxPlayers || 11;
+  const minPlayerValue = parseInt(auctionSettings?.min_player_value) || 10000;
+  const maxPlayers = parseInt(auctionSettings?.max_players_per_team) || parseInt(currentTeamInfo?.maxPlayers) || 13;
   const slotsNeeded = Math.max(0, maxPlayers - totalSquadCount - 1);
   const maxBidAmount = Math.max(0, (currentTeamInfo?.purseRemaining || 0) - (slotsNeeded * minPlayerValue));
 
@@ -388,7 +402,7 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
           <div>
             <div style={{ fontSize: '0.72rem', color: 'var(--slate-400)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Squad Count</div>
             <div style={{ fontSize: '1.4rem', fontFamily: 'Outfit', fontWeight: 800, color: '#10B981' }}>
-              {totalSquadCount} / {currentTeamInfo.maxPlayers || 11}
+              {totalSquadCount} / {maxPlayers}
             </div>
           </div>
 
@@ -522,6 +536,22 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
                   </tr>
                 </thead>
                 <tbody>
+                  {ownerList.map((owner, idx) => (
+                    <tr key={`owner_${idx}`}>
+                      <td style={{ fontWeight: 600, color: '#FFFFFF' }}>
+                        👑 {owner} <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(245, 158, 11, 0.2)', color: '#F59E0B', marginLeft: '6px' }}>Owner</span>
+                      </td>
+                      <td style={{ color: '#F59E0B', fontWeight: 600, fontSize: '0.85rem' }}>Pre-assigned</td>
+                    </tr>
+                  ))}
+                  {iconList.map((icon, idx) => (
+                    <tr key={`icon_${idx}`}>
+                      <td style={{ fontWeight: 600, color: '#FFFFFF' }}>
+                        ⭐ {icon} <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(59, 130, 246, 0.2)', color: '#60A5FA', marginLeft: '6px' }}>Icon</span>
+                      </td>
+                      <td style={{ color: '#60A5FA', fontWeight: 600, fontSize: '0.85rem' }}>Pre-assigned</td>
+                    </tr>
+                  ))}
                   {retainedList.map((rp, idx) => (
                     <tr key={`ret_${idx}`}>
                       <td style={{ fontWeight: 600, color: '#FFFFFF' }}>
@@ -532,8 +562,8 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
                   ))}
                   {myPlayers.map((p, idx) => (
                     <tr key={idx}>
-                      <td style={{ fontWeight: 600, color: '#FFFFFF' }}>{p.player}</td>
-                      <td style={{ color: '#F59E0B', fontWeight: 700 }}>{formatNum(p.soldPrice || p.amount)}</td>
+                      <td style={{ fontWeight: 600, color: '#FFFFFF' }}>{p.playerName || p.player}</td>
+                      <td style={{ color: '#F59E0B', fontWeight: 700 }}>{formatNum(p.price || p.soldPrice || p.amount)}</td>
                     </tr>
                   ))}
                 </tbody>

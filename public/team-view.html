@@ -1102,6 +1102,7 @@
             <div class="purse-display">Spent: <strong id="topSpent">-</strong></div>
             <div class="purse-display">Purse: <strong id="topPurse">-</strong></div>
             <div class="purse-display" style="border-color:var(--green-border);background:var(--green-subtle);">Max Bid: <strong id="topMaxBid" style="color:var(--green);">-</strong></div>
+            <div class="purse-display" style="border-color:var(--primary-border);background:var(--primary-subtle);">Squad: <strong id="topSquad" style="color:var(--primary);">-</strong></div>
             <a href="index.html" style="color:var(--slate-700);text-decoration:none;font-size:0.78rem;font-weight:600;padding:6px 12px;border:1px solid var(--border);border-radius:8px;background:#FFFFFF;box-shadow:0 1px 2px rgba(0,0,0,0.04);">Hub</a>
             <button class="logout-btn" onclick="doLogout()">Logout</button>
         </div>
@@ -1331,7 +1332,12 @@ function attachFirebaseListeners() {
         if (val) {
             const raw = Array.isArray(val) ? val : Object.values(val);
             availableEvents = raw.filter(isEventActive);
+            const currentEv = availableEvents.find(e => (e.eventCode || '').toUpperCase() === currentEventCode.toUpperCase());
+            if (currentEv && currentEv.maxPlayers) {
+                MAX_PLAYERS_PER_TEAM = parseInt(currentEv.maxPlayers);
+            }
             renderLoginEventOptions();
+            renderMyPurse(cachedTeamsData);
         }
     });
 
@@ -1723,17 +1729,25 @@ function executeMaxBid() {
 function getMySquadSize() {
     if (!loggedInTeam) return 0;
     let count = 0;
-    // Count icon/owner as pre-assigned (they're already in the team)
-    const myTeamData = cachedTeamsData.find(t => t.teamName === loggedInTeam.teamName);
+    const myTeamData = (cachedTeamsData && cachedTeamsData.find(t => t.teamName === loggedInTeam.teamName)) || loggedInTeam;
     if (myTeamData) {
-        if (myTeamData.ownerName) count++;
-        if (myTeamData.iconPlayers && Array.isArray(myTeamData.iconPlayers) && myTeamData.iconPlayers.length > 0) count += myTeamData.iconPlayers.filter(Boolean).length;
-        else if (myTeamData.iconPlayer) count++;
-        if (myTeamData.retainedPlayers && Array.isArray(myTeamData.retainedPlayers) && myTeamData.retainedPlayers.length > 0) count += myTeamData.retainedPlayers.filter(Boolean).length;
-        else if (myTeamData.retainedPlayer) count += myTeamData.retainedPlayer.split(',').map(s=>s.trim()).filter(Boolean).length;
+        if (myTeamData.owners && Array.isArray(myTeamData.owners) && myTeamData.owners.length > 0) {
+            count += myTeamData.owners.filter(Boolean).length;
+        } else if (myTeamData.ownerName) {
+            count += myTeamData.ownerName.split(',').map(s=>s.trim()).filter(Boolean).length;
+        }
+        if (myTeamData.iconPlayers && Array.isArray(myTeamData.iconPlayers) && myTeamData.iconPlayers.length > 0) {
+            count += myTeamData.iconPlayers.filter(Boolean).length;
+        } else if (myTeamData.iconPlayer) {
+            count += myTeamData.iconPlayer.split(',').map(s=>s.trim()).filter(Boolean).length;
+        }
+        if (myTeamData.retainedPlayers && Array.isArray(myTeamData.retainedPlayers) && myTeamData.retainedPlayers.length > 0) {
+            count += myTeamData.retainedPlayers.filter(Boolean).length;
+        } else if (myTeamData.retainedPlayer) {
+            count += myTeamData.retainedPlayer.split(',').map(s=>s.trim()).filter(Boolean).length;
+        }
     }
-    // Count sold players from cached data (reliable, not DOM-dependent)
-    const mySold = cachedSoldList.filter(p => p.team === loggedInTeam.teamName);
+    const mySold = (cachedSoldList || []).filter(p => p.team === loggedInTeam.teamName);
     count += mySold.length;
     return count;
 }
@@ -1743,7 +1757,8 @@ function calcMaxBid(teamsData) {
     const myTeam = teamsData.find(t => t.teamName === loggedInTeam.teamName);
     if (!myTeam) return 0;
     const mySquadSize = getMySquadSize();
-    const slotsNeeded = (myTeam.maxPlayers || MAX_PLAYERS_PER_TEAM) - mySquadSize - 1;
+    const maxP = MAX_PLAYERS_PER_TEAM || myTeam.maxPlayers || 11;
+    const slotsNeeded = maxP - mySquadSize - 1;
     return myTeam.purseRemaining - (Math.max(0, slotsNeeded) * MIN_PLAYER_VALUE);
 }
 
@@ -2036,7 +2051,7 @@ function renderMyPurse(teamsData) {
         document.getElementById('topPurse').textContent = formatNum(myTeam.purseRemaining);
 
         // Calculate total spent from sold list
-        const mySpent = cachedSoldList
+        const mySpent = (cachedSoldList || [])
             .filter(p => p.team === loggedInTeam.teamName)
             .reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0);
         document.getElementById('topSpent').textContent = formatNum(mySpent);
@@ -2044,33 +2059,95 @@ function renderMyPurse(teamsData) {
         // Calculate and display max bid
         const maxBid = calcMaxBid(teamsData);
         document.getElementById('topMaxBid').textContent = formatNum(Math.max(0, maxBid));
+
+        // Display squad count in top bar
+        const squadEl = document.getElementById('topSquad');
+        if (squadEl) {
+            const mySquadSize = getMySquadSize();
+            const maxP = MAX_PLAYERS_PER_TEAM || myTeam.maxPlayers || 11;
+            squadEl.textContent = `${mySquadSize} / ${maxP}`;
+        }
     }
 }
 
 function renderMySquad(soldList) {
     const mySquad = document.getElementById('mySquadContainer');
     if (!loggedInTeam) return;
-    const myPlayers = soldList.filter(p => p.team === loggedInTeam.teamName);
-    if (myPlayers.length > 0) {
-        mySquad.innerHTML = myPlayers.map(p => {
-            const sp = findSheetPlayer(p.playerName);
+
+    const myTeamData = (cachedTeamsData && cachedTeamsData.find(t => t.teamName === loggedInTeam.teamName)) || loggedInTeam;
+    const myPlayers = (soldList || []).filter(p => p.team === loggedInTeam.teamName);
+
+    const ownerList = myTeamData && myTeamData.owners && Array.isArray(myTeamData.owners) && myTeamData.owners.length > 0
+        ? myTeamData.owners.filter(Boolean)
+        : (myTeamData && myTeamData.ownerName ? myTeamData.ownerName.split(',').map(s=>s.trim()).filter(Boolean) : []);
+
+    const iconList = myTeamData && myTeamData.iconPlayers && Array.isArray(myTeamData.iconPlayers) && myTeamData.iconPlayers.length > 0
+        ? myTeamData.iconPlayers.filter(Boolean)
+        : (myTeamData && myTeamData.iconPlayer ? myTeamData.iconPlayer.split(',').map(s=>s.trim()).filter(Boolean) : []);
+
+    const retainedList = myTeamData && myTeamData.retainedPlayers && Array.isArray(myTeamData.retainedPlayers) && myTeamData.retainedPlayers.length > 0
+        ? myTeamData.retainedPlayers.filter(Boolean)
+        : (myTeamData && myTeamData.retainedPlayer ? myTeamData.retainedPlayer.split(',').map(s=>s.trim()).filter(Boolean) : []);
+
+    let squadItems = [];
+
+    // Pre-assigned owner
+    ownerList.forEach(name => {
+        squadItems.push({
+            name,
+            tag: '&#128081; Owner',
+            priceStr: 'Pre-assigned'
+        });
+    });
+
+    // Pre-assigned icons
+    iconList.forEach(name => {
+        squadItems.push({
+            name,
+            tag: '&#11088; Icon',
+            priceStr: 'Pre-assigned'
+        });
+    });
+
+    // Retained players
+    retainedList.forEach(name => {
+        squadItems.push({
+            name,
+            tag: '&#128274; Retained',
+            priceStr: 'Retained'
+        });
+    });
+
+    // Auction bought players
+    myPlayers.forEach(p => {
+        squadItems.push({
+            name: p.playerName,
+            tag: '',
+            priceStr: formatNum(parseFloat(p.price))
+        });
+    });
+
+    if (squadItems.length > 0) {
+        mySquad.innerHTML = squadItems.map(item => {
+            const sp = findSheetPlayer(item.name);
             const photo = sp ? _getPhoto(sp) : null;
             const club = sp ? _getClub(sp) : null;
-            const initials = getInitials(p.playerName);
+            const initials = getInitials(item.name);
             const pDriveId = getDriveFileId(photo);
             const avatarHtml = photo
-                ? `<img src="${esc(photo)}" alt="${esc(p.playerName)}" onerror="if(!this.dataset.tried && '${pDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${pDriveId}&sz=w300';}else{this.parentElement.innerHTML='${initials}';}">`
+                ? `<img src="${esc(photo)}" alt="${esc(item.name)}" onerror="if(!this.dataset.tried && '${pDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${pDriveId}&sz=w300';}else{this.parentElement.innerHTML='${initials}';}">`
                 : initials;
             const clubHtml = club === 'home' ? `<span class="squad-card-club" style="color:#2ecc71;">&#127968;</span>`
                 : club === 'away' ? `<span class="squad-card-club" style="color:#5dade2;">&#9992;&#65039;</span>` : '';
+            const tagHtml = item.tag ? `<span style="font-size:0.7rem;padding:2px 8px;border-radius:4px;background:rgba(245,158,11,0.15);color:#d4a843;font-weight:600;margin-left:6px;">${item.tag}</span>` : '';
 
-            return `<div class="squad-player-card" onclick="openTvPlayerModal('${esc(p.playerName).replace(/'/g, "\\'")}')">
+            return `<div class="squad-player-card" onclick="openTvPlayerModal('${esc(item.name).replace(/'/g, "\\'")}')">
                 <div class="squad-card-header">
                     <div class="squad-card-avatar">${avatarHtml}</div>
                     <div class="squad-card-info">
-                        <div class="squad-card-name">${esc(p.playerName)}</div>
+                        <div class="squad-card-name">${esc(item.name)} ${tagHtml}</div>
                         <div class="squad-card-meta">
-                            <span class="squad-card-price">${formatNum(parseFloat(p.price))}</span>
+                            <span class="squad-card-price">${item.priceStr}</span>
                             ${clubHtml}
                         </div>
                     </div>
@@ -2079,7 +2156,7 @@ function renderMySquad(soldList) {
             </div>`;
         }).join('');
     } else {
-        mySquad.innerHTML = '<div class="empty-msg">No players purchased yet.</div>';
+        mySquad.innerHTML = '<div class="empty-msg">No players registered yet.</div>';
     }
 }
 

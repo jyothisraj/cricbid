@@ -1243,7 +1243,9 @@ function attachListeners() {
             const found = availableEvents.find(e => e.eventCode === currentEventCode);
             if (found) {
                 currentEventObj = found;
+                if (found.maxPlayers) MAX_PLAYERS_PER_TEAM = parseInt(found.maxPlayers);
                 updateEventDisplayHeader();
+                renderTeams();
             } else if (currentEventCode && rawEvents.some(e => e.eventCode === currentEventCode && !isEventActive(e))) {
                 // If requested tournament is Draft, Upcoming or Completed, notify and open active picker
                 showEventPickerModal();
@@ -1522,11 +1524,12 @@ function renderTeams() {
         const teamSold = cachedSoldList.filter(s => s.team === t.teamName);
         const totalSpent = teamSold.reduce((sum, s) => sum + (parseFloat(s.price) || 0), 0);
         const purse = t.purseRemaining || 0;
-        const maxPlayers = t.maxPlayers || MAX_PLAYERS_PER_TEAM;
+        const maxPlayers = MAX_PLAYERS_PER_TEAM || t.maxPlayers || 11;
 
         // Squad size includes icon + owner + retained + bought players
         let squadSize = teamSold.length;
-        if (t.ownerName) squadSize++;
+        if (t.owners && Array.isArray(t.owners) && t.owners.length > 0) squadSize += t.owners.filter(Boolean).length;
+        else if (t.ownerName) squadSize += t.ownerName.split(',').map(s=>s.trim()).filter(Boolean).length;
         if (t.iconPlayers && Array.isArray(t.iconPlayers) && t.iconPlayers.length > 0) squadSize += t.iconPlayers.filter(Boolean).length;
         else if (t.iconPlayer) squadSize++;
         if (t.retainedPlayers && Array.isArray(t.retainedPlayers) && t.retainedPlayers.length > 0) squadSize += t.retainedPlayers.filter(Boolean).length;

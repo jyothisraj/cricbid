@@ -180,6 +180,17 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
                   const teamBoughtCount = (auctionLog.sold || []).filter(s => 
                     (s.team || '').toLowerCase() === (t.teamName || '').toLowerCase()
                   ).length;
+                  const ownerCount = Array.isArray(t.owners) && t.owners.length > 0
+                    ? t.owners.filter(Boolean).length
+                    : (t.ownerName ? t.ownerName.split(',').map(s => s.trim()).filter(Boolean).length : 0);
+                  const iconCount = Array.isArray(t.iconPlayers) && t.iconPlayers.length > 0
+                    ? t.iconPlayers.filter(Boolean).length
+                    : (t.iconPlayer ? t.iconPlayer.split(',').map(s => s.trim()).filter(Boolean).length : 0);
+                  const retCount = Array.isArray(t.retainedPlayers) && t.retainedPlayers.length > 0
+                    ? t.retainedPlayers.filter(Boolean).length
+                    : (t.retainedPlayer ? t.retainedPlayer.split(',').map(s => s.trim()).filter(Boolean).length : 0);
+                  const totalSquad = ownerCount + iconCount + retCount + teamBoughtCount;
+                  const maxSquad = parseInt(t.maxPlayers) || 13;
 
                   return (
                     <tr key={t.teamName}>
@@ -197,7 +208,7 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
                         <span>{t.teamName}</span>
                       </td>
                       <td style={{ color: '#F59E0B', fontWeight: 700 }}>{formatNum(t.purseRemaining)}</td>
-                      <td style={{ color: '#10B981', fontWeight: 600 }}>{teamBoughtCount}</td>
+                      <td style={{ color: '#10B981', fontWeight: 600 }}>{totalSquad} / {maxSquad}</td>
                     </tr>
                   );
                 })}

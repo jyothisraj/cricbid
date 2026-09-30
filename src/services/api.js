@@ -135,6 +135,23 @@ export async function listenTimer(eventCode, callback) {
   return () => ref.off('value', handler);
 }
 
+export async function listenAuctionSettings(eventCode, callback) {
+  const db = await getDb();
+  if (!db) return () => {};
+  const code = (eventCode || 'ESL2026').toUpperCase();
+  const ref = db.ref(`auctions/${code}/settings`);
+  const handler = snap => {
+    let data = snap.val();
+    if (!data && code === 'ESL2026') {
+      db.ref('eslAuction/settings').once('value', leg => callback(leg.val()));
+    } else {
+      callback(data);
+    }
+  };
+  ref.on('value', handler);
+  return () => ref.off('value', handler);
+}
+
 export async function listenTeams(eventCode, callback) {
   const db = await getDb();
   if (!db) return () => {};
