@@ -1505,7 +1505,8 @@ function disableAllBidButtons(includePickBtn = true) {
 
 function enableAllBidButtons() {
     if (!currentLiveData || currentLiveData.status !== 'bidding') return;
-    const currentBid = parseFloat(currentLiveData.currentBid) || 0;
+    const baseValue = parseFloat(currentLiveData.baseValue) || MIN_PLAYER_VALUE;
+    const currentBid = currentLiveData.currentBidder ? (parseFloat(currentLiveData.currentBid) || baseValue) : baseValue;
     const currentBidder = currentLiveData.currentBidder || '';
     const isMyBid = loggedInTeam && currentBidder === loggedInTeam.teamName;
     const noBidYet = !currentBidder;
@@ -1518,22 +1519,22 @@ function enableAllBidButtons() {
     document.querySelectorAll('.bid-btn').forEach(btn => {
         const amtAttr = btn.getAttribute('data-amount');
 
-        // PICK button — only enabled when no one has bid yet and team not blocked
+        // PICK / BASE PRICE button — enabled when no one has bid yet and team not blocked
         if (amtAttr === 'pick') {
             btn.disabled = !noBidYet || timedOut || teamBlocked;
             return;
         }
 
-        // MAX BID button — disabled until someone has picked
+        // MAX BID button
         if (amtAttr === 'max') {
-            btn.disabled = noBidYet || isMyBid || maxBid <= currentBid || timedOut || teamBlocked;
+            btn.disabled = isMyBid || maxBid <= currentBid || timedOut || teamBlocked;
             return;
         }
 
-        // Regular bid buttons — disabled until someone has picked
+        // Regular bid buttons
         const amt = parseInt(amtAttr) || 0;
         const newBid = currentBid + amt;
-        let disabledBtn = noBidYet || isMyBid || newBid > maxBid || timedOut || teamBlocked;
+        let disabledBtn = isMyBid || newBid > maxBid || timedOut || teamBlocked;
         btn.disabled = disabledBtn;
     });
 }
@@ -1558,7 +1559,8 @@ function placeBid(amount) {
         return;
     }
 
-    const currentBid = parseFloat(currentLiveData.currentBid) || 0;
+    const baseValue = parseFloat(currentLiveData.baseValue) || MIN_PLAYER_VALUE;
+    const currentBid = currentLiveData.currentBidder ? (parseFloat(currentLiveData.currentBid) || baseValue) : baseValue;
     const newBid = currentBid + amount;
 
     const evPath = `auctions/${currentEventCode}`;
@@ -1675,6 +1677,11 @@ function placePick() {
             }
         });
     });
+}
+
+// Alias for bidding with base price
+function bidBasePrice() {
+    placePick();
 }
 
 function confirmMaxBid() {
@@ -1962,23 +1969,28 @@ function renderLiveBanner(data) {
             ? `<div style="padding:10px 16px;border-radius:10px;background:rgba(231,76,60,0.12);border:1px solid rgba(231,76,60,0.3);color:#e74c3c;font-size:0.85rem;font-weight:500;margin-bottom:12px;text-align:center;">&#128683; Your team is restricted from bidding on this player</div>`
             : '';
 
-        // Build bid section depending on whether someone has picked or not
+        // Build bid section depending on whether someone has picked/bid or not
         let bidSectionHtml = blockedBanner;
         if (noBidYet) {
-            // No one picked yet — show PICK button prominently
+            // No one bid yet — show prominent BID WITH BASE PRICE button and regular increments
             bidSectionHtml = `
                 ${bidHtml}
-                <div style="margin-top:6px;margin-bottom:6px;font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;">Pick this player at base price</div>
+                <div style="margin-top:6px;margin-bottom:6px;font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;font-weight:700;">Opening Bid</div>
                 <div class="bid-buttons-row">
-                    <button class="bid-btn bid-btn-pick" data-amount="pick" onclick="placePick()" ${pickDisabled ? 'disabled' : ''}>PICK @ ${formatNum(baseValue)}</button>
+                    <button class="bid-btn bid-btn-pick" data-amount="pick" onclick="placePick()" ${pickDisabled ? 'disabled' : ''}>🎯 BID WITH BASE PRICE (${formatNum(baseValue)})</button>
                 </div>
+                <div class="bid-buttons-row" style="margin-top:10px;">${bidButtonsHtml}</div>
+                <div class="bid-buttons-row" style="margin-top:8px;">${maxBidBtnHtml}</div>
                 ${maxBidHtml}
             `;
         } else {
-            // Someone picked — show bid buttons
+            // Someone bid — show bid buttons with disabled base price indicator
             bidSectionHtml = `
                 ${bidHtml}
-                <div class="bid-buttons-row">${bidButtonsHtml}</div>
+                <div class="bid-buttons-row">
+                    <button class="bid-btn" style="background:#E2E8F0;color:#64748B;border:1px solid #CBD5E1;box-shadow:none;cursor:not-allowed;min-width:auto;padding:12px 14px;" disabled>Base: ${formatNum(baseValue)}</button>
+                    ${bidButtonsHtml}
+                </div>
                 <div class="bid-buttons-row" style="margin-top:8px;">${maxBidBtnHtml}</div>
                 ${maxBidHtml}
             `;

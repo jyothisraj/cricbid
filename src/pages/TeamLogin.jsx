@@ -133,9 +133,41 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
     setPassword('');
   };
 
+  const handleBidBasePrice = async () => {
+    if (!liveData || !liveData.currentPlayer) return;
+    const basePrice = Number(liveData.baseValue || liveData.currentPlayer.basePrice || liveData.currentPlayer.BasePrice || 10000);
+    if (basePrice > maxBidAmount) {
+      alert(`Base price (${formatNum(basePrice)}) exceeds your maximum allowable reserve of ${formatNum(maxBidAmount)}!`);
+      return;
+    }
+
+    const db = await getDb();
+    if (db) {
+      try {
+        await db.ref(`auctions/${currentEvent}/live`).update({
+          currentBid: basePrice,
+          currentBidder: currentTeamInfo.teamName,
+          lastBidTime: Date.now()
+        });
+        const timerDuration = 30;
+        await db.ref(`auctions/${currentEvent}/timer`).set({
+          running: true,
+          endsAt: Date.now() + (timerDuration * 1000),
+          totalSeconds: timerDuration,
+          remaining: timerDuration
+        });
+      } catch (err) {
+        console.error('Bid base price error:', err);
+      }
+    }
+  };
+
   const handlePlaceBid = async (inc = 1000) => {
     if (!liveData || !liveData.currentPlayer) return;
-    const currentBid = Number(liveData.currentBid || liveData.baseValue || 10000);
+    const basePrice = Number(liveData.baseValue || liveData.currentPlayer.basePrice || liveData.currentPlayer.BasePrice || 10000);
+    const currentBid = liveData.currentBidder
+      ? Number(liveData.currentBid || basePrice)
+      : basePrice;
     const newBid = currentBid + inc;
 
     if (newBid > maxBidAmount) {
@@ -167,7 +199,10 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
 
   const handlePlaceMaxBid = async () => {
     if (!liveData || !liveData.currentPlayer) return;
-    const currentBid = Number(liveData.currentBid || liveData.baseValue || 10000);
+    const basePrice = Number(liveData.baseValue || liveData.currentPlayer.basePrice || liveData.currentPlayer.BasePrice || 10000);
+    const currentBid = liveData.currentBidder
+      ? Number(liveData.currentBid || basePrice)
+      : basePrice;
     if (maxBidAmount <= currentBid) {
       alert(`Max allowable bid (${formatNum(maxBidAmount)}) is not higher than current bid (${formatNum(currentBid)})!`);
       return;
@@ -435,77 +470,136 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
               {/* Complete Player Profile Card */}
               <PlayerProfileCard player={mergedPlayer} liveData={liveData} />
 
-              {/* Bidding Info */}
-              <div style={{
-                background: isMyBid ? 'rgba(16, 185, 129, 0.12)' : 'rgba(30, 41, 59, 0.6)',
-                border: `1px solid ${isMyBid ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-subtle)'}`,
-                borderRadius: 'var(--radius-md)',
-                padding: '16px 20px',
-                marginBottom: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>Current Highest Bid</div>
-                  <div style={{ fontSize: '1.8rem', fontFamily: 'Outfit', fontWeight: 800, color: isMyBid ? '#10B981' : '#F59E0B' }}>
-                    {formatNum(liveData.currentBid || liveData.baseValue || 10000)}
-                  </div>
-                </div>
+              {/* Bidding Info & Controls */}
+              {(() => {
+                const basePrice = Number(liveData.baseValue || liveData.currentPlayer?.basePrice || liveData.currentPlayer?.BasePrice || 10000);
+                const hasBidder = Boolean(liveData.currentBidder);
+                const currentBidAmount = hasBidder ? Number(liveData.currentBid || basePrice) : basePrice;
 
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>Leading Team</div>
-                  <div style={{ fontSize: '1.05rem', fontWeight: 700, color: isMyBid ? '#10B981' : '#FFFFFF' }}>
-                    {isMyBid ? '🏆 You are winning!' : (liveData.currentBidder || 'Opening Bid')}
-                  </div>
-                </div>
-              </div>
+                return (
+                  <div>
+                    {/* Bidding Status Card */}
+                    <div style={{
+                      background: isMyBid ? 'rgba(16, 185, 129, 0.12)' : 'rgba(30, 41, 59, 0.6)',
+                      border: `1px solid ${isMyBid ? 'rgba(16, 185, 129, 0.4)' : 'var(--border-subtle)'}`,
+                      borderRadius: 'var(--radius-md)',
+                      padding: '16px 20px',
+                      marginBottom: '16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}>
+                      <div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>
+                          {hasBidder ? 'Current Highest Bid' : 'Starting Base Price'}
+                        </div>
+                        <div style={{ fontSize: '1.8rem', fontFamily: 'Outfit', fontWeight: 800, color: hasBidder ? (isMyBid ? '#10B981' : '#F59E0B') : '#38BDF8' }}>
+                          {formatNum(hasBidder ? currentBidAmount : basePrice)}
+                        </div>
+                      </div>
 
-              {/* Bid Controls: 1000, 2000, 5000, Max Amount */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '10px' }}>
-                <button 
-                  className="btn btn-outline" 
-                  style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
-                  onClick={() => handlePlaceBid(1000)}
-                  id="btnPlaceBid1k"
-                  disabled={isMyBid || (Number(liveData.currentBid || liveData.baseValue || 10000) + 1000 > maxBidAmount)}
-                >
-                  ⚡ +₹1,000
-                </button>
-                <button 
-                  className="btn btn-outline" 
-                  style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
-                  onClick={() => handlePlaceBid(2000)}
-                  id="btnPlaceBid2k"
-                  disabled={isMyBid || (Number(liveData.currentBid || liveData.baseValue || 10000) + 2000 > maxBidAmount)}
-                >
-                  ⚡ +₹2,000
-                </button>
-                <button 
-                  className="btn btn-gold" 
-                  style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
-                  onClick={() => handlePlaceBid(5000)}
-                  id="btnPlaceBid5k"
-                  disabled={isMyBid || (Number(liveData.currentBid || liveData.baseValue || 10000) + 5000 > maxBidAmount)}
-                >
-                  ⚡ +₹5,000
-                </button>
-                <button 
-                  className="btn btn-primary" 
-                  style={{ 
-                    padding: '12px 6px', 
-                    fontSize: '0.92rem', 
-                    fontWeight: 800, 
-                    background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)', 
-                    borderColor: '#DC2626' 
-                  }}
-                  onClick={handlePlaceMaxBid}
-                  id="btnPlaceBidMax"
-                  disabled={isMyBid || maxBidAmount <= Number(liveData.currentBid || liveData.baseValue || 10000)}
-                >
-                  🔥 Max ({formatNum(maxBidAmount)})
-                </button>
-              </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>
+                          {hasBidder ? 'Leading Team' : 'Auction Status'}
+                        </div>
+                        <div style={{ fontSize: '1.05rem', fontWeight: 700, color: isMyBid ? '#10B981' : (hasBidder ? '#FFFFFF' : 'var(--slate-300)') }}>
+                          {isMyBid ? '🏆 You are winning!' : (liveData.currentBidder || 'Waiting for Opening Bid')}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Opening Bid Action Banner (Visible when no team has bid yet) */}
+                    {!hasBidder && (
+                      <div style={{ marginBottom: '14px' }}>
+                        <button 
+                          className="btn btn-primary"
+                          style={{
+                            width: '100%',
+                            padding: '15px 20px',
+                            fontSize: '1.15rem',
+                            fontWeight: 800,
+                            background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+                            borderColor: '#2563EB',
+                            boxShadow: '0 4px 16px rgba(37, 99, 235, 0.35)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            letterSpacing: '0.5px'
+                          }}
+                          onClick={handleBidBasePrice}
+                          id="btnBidBasePriceMain"
+                          disabled={basePrice > maxBidAmount}
+                        >
+                          <span>🎯</span>
+                          <span>BID WITH BASE PRICE ({formatNum(basePrice)})</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Bid Controls: Bid Base Price, +1000, +2000, +5000, Max Amount */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '10px' }}>
+                      <button 
+                        className="btn btn-primary" 
+                        style={{ 
+                          padding: '12px 6px', 
+                          fontSize: '0.92rem', 
+                          fontWeight: 800,
+                          background: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)',
+                          borderColor: '#2563EB'
+                        }}
+                        onClick={handleBidBasePrice}
+                        id="btnPlaceBidBase"
+                        disabled={isMyBid || hasBidder || (basePrice > maxBidAmount)}
+                      >
+                        🎯 Base ({formatNum(basePrice)})
+                      </button>
+                      <button 
+                        className="btn btn-outline" 
+                        style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
+                        onClick={() => handlePlaceBid(1000)}
+                        id="btnPlaceBid1k"
+                        disabled={isMyBid || (currentBidAmount + 1000 > maxBidAmount)}
+                      >
+                        ⚡ +₹1,000
+                      </button>
+                      <button 
+                        className="btn btn-outline" 
+                        style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
+                        onClick={() => handlePlaceBid(2000)}
+                        id="btnPlaceBid2k"
+                        disabled={isMyBid || (currentBidAmount + 2000 > maxBidAmount)}
+                      >
+                        ⚡ +₹2,000
+                      </button>
+                      <button 
+                        className="btn btn-gold" 
+                        style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
+                        onClick={() => handlePlaceBid(5000)}
+                        id="btnPlaceBid5k"
+                        disabled={isMyBid || (currentBidAmount + 5000 > maxBidAmount)}
+                      >
+                        ⚡ +₹5,000
+                      </button>
+                      <button 
+                        className="btn btn-primary" 
+                        style={{ 
+                          padding: '12px 6px', 
+                          fontSize: '0.92rem', 
+                          fontWeight: 800, 
+                          background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)', 
+                          borderColor: '#DC2626' 
+                        }}
+                        onClick={handlePlaceMaxBid}
+                        id="btnPlaceBidMax"
+                        disabled={isMyBid || maxBidAmount <= currentBidAmount}
+                      >
+                        🔥 Max ({formatNum(maxBidAmount)})
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           ) : (
             <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--slate-400)' }}>
