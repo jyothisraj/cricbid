@@ -41,6 +41,29 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
     };
   }, [currentEvent]);
 
+  const [secondsLeft, setSecondsLeft] = useState(30);
+
+  useEffect(() => {
+    if (!timerData) {
+      setSecondsLeft(30);
+      return;
+    }
+
+    if (timerData.running && timerData.endsAt) {
+      const calc = () => Math.max(0, Math.ceil((timerData.endsAt - Date.now()) / 1000));
+      setSecondsLeft(calc());
+      const interval = setInterval(() => {
+        setSecondsLeft(calc());
+      }, 250);
+      return () => clearInterval(interval);
+    } else {
+      const rem = timerData.remaining !== undefined 
+        ? timerData.remaining 
+        : (timerData.timeLeft !== undefined ? timerData.timeLeft : (timerData.totalSeconds || 30));
+      setSecondsLeft(rem !== undefined ? rem : 30);
+    }
+  }, [timerData]);
+
   const cp = liveData?.currentPlayer;
   const cpName = ((cp && (cp.Name || cp.name)) || '').trim().toLowerCase();
   const fullPlayer = cp ? (allPlayers.find(p => 
@@ -85,11 +108,16 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
             <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--slate-400)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               CURRENT BIDDING SPOTLIGHT
             </span>
-            {timerData && timerData.running && (
-              <span className="badge badge-live" style={{ fontSize: '1.1rem', padding: '6px 16px', fontWeight: 800 }}>
-                ⏱️ {timerData.timeLeft}s
-              </span>
-            )}
+            <span className={`badge ${secondsLeft <= 5 && timerData?.running ? 'badge-urgent' : 'badge-live'}`} style={{
+              fontSize: '1.1rem',
+              padding: '6px 16px',
+              fontWeight: 800,
+              background: secondsLeft <= 5 && timerData?.running ? 'rgba(239, 68, 68, 0.25)' : undefined,
+              color: secondsLeft <= 5 && timerData?.running ? '#EF4444' : undefined,
+              borderColor: secondsLeft <= 5 && timerData?.running ? 'rgba(239, 68, 68, 0.5)' : undefined
+            }}>
+              ⏱️ {secondsLeft}s {!timerData?.running ? '(Ready)' : ''}
+            </span>
           </div>
 
           {cp ? (

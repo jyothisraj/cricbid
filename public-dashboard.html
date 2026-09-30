@@ -242,7 +242,7 @@
             color: var(--red); 
             animation: pulse 1s infinite;
         }
-        .timer-display.paused { opacity: 0.5; }
+        .timer-display.paused { opacity: 0.65; }
         .timer-label {
             font-size: 0.72rem;
             text-transform: uppercase;
@@ -726,6 +726,7 @@ let MIN_PLAYER_VALUE = 10000;
 let currentEventCode = '';
 let currentEventObj = null;
 let availableEvents = [];
+let cachedTimerData = null;
 
 // ===================== EVENT ROUTING =====================
 function parseEventCodeFromUrl() {
@@ -1287,8 +1288,12 @@ function attachListeners() {
     db.ref(`${evPath}/timer`).on('value', snap => {
         let val = snap.val();
         if (!val && currentEventCode === 'ESL2026') {
-            db.ref('eslAuction/timer').once('value', legSnap => handleTimerUpdate(legSnap.val()));
+            db.ref('eslAuction/timer').once('value', legSnap => {
+                cachedTimerData = legSnap.val();
+                handleTimerUpdate(cachedTimerData);
+            });
         } else {
+            cachedTimerData = val;
             handleTimerUpdate(val);
         }
     });
@@ -1361,7 +1366,11 @@ function handleTimerUpdate(timerData) {
     if (localTimerInterval) { clearInterval(localTimerInterval); localTimerInterval = null; }
     const timerEl = document.getElementById('timerDisplay');
     if (!timerEl) return;
-    if (!timerData) { timerEl.textContent = ''; timerEl.className = 'timer-display'; return; }
+    if (!timerData) {
+        timerEl.textContent = '30';
+        timerEl.className = 'timer-display paused';
+        return;
+    }
 
     if (timerData.running && timerData.endsAt) {
         const tick = () => {
@@ -1370,6 +1379,7 @@ function handleTimerUpdate(timerData) {
             timerEl.className = 'timer-display' + (remaining <= 5 ? ' urgent' : '');
             if (remaining <= 0) {
                 timerEl.textContent = "TIME'S UP!";
+                timerEl.className = 'timer-display urgent';
                 clearInterval(localTimerInterval);
                 localTimerInterval = null;
             }
@@ -1377,13 +1387,18 @@ function handleTimerUpdate(timerData) {
         tick();
         localTimerInterval = setInterval(tick, 250);
     } else {
-        const remaining = timerData.remaining !== undefined ? timerData.remaining : timerData.totalSeconds;
+        const remaining = timerData.remaining !== undefined 
+            ? timerData.remaining 
+            : (timerData.timeLeft !== undefined ? timerData.timeLeft : (timerData.totalSeconds !== undefined ? timerData.totalSeconds : 30));
         if (remaining !== undefined && remaining > 0) {
             timerEl.textContent = remaining;
             timerEl.className = 'timer-display paused';
         } else if (remaining === 0) {
             timerEl.textContent = "TIME'S UP!";
             timerEl.className = 'timer-display urgent';
+        } else {
+            timerEl.textContent = '30';
+            timerEl.className = 'timer-display paused';
         }
     }
 }
@@ -1435,7 +1450,17 @@ function renderAuctionStage(data) {
         `;
 
         // Re-apply timer
-        if (db) db.ref('eslAuction/timer').once('value', snap => handleTimerUpdate(snap.val()));
+        if (cachedTimerData) {
+            handleTimerUpdate(cachedTimerData);
+        } else if (db && currentEventCode) {
+            const tPath = currentEventCode === 'ESL2026' ? 'eslAuction/timer' : `auctions/${currentEventCode}/timer`;
+            db.ref(tPath).once('value', snap => {
+                cachedTimerData = snap.val();
+                handleTimerUpdate(cachedTimerData);
+            });
+        } else {
+            handleTimerUpdate(null);
+        }
 
     } else if (data.status === 'sold' && data.lastResult) {
         const r = data.lastResult;

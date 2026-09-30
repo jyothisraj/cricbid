@@ -339,7 +339,7 @@
             line-height: 1;
         }
         .live-timer.urgent { color: var(--red); animation: pulse 1s infinite; }
-        .live-timer.paused { opacity: 0.5; }
+        .live-timer.paused { opacity: 0.65; }
         .live-timer-label {
             font-size: 0.72rem;
             text-transform: uppercase;
@@ -1188,6 +1188,7 @@ let timedOut = false;
 let timerRunning = false;
 let currentEventCode = 'ESL2026';
 let availableEvents = [];
+let cachedTimerData = null;
 
 // ===================== EVENT ROUTING =====================
 function parseEventCodeFromUrl() {
@@ -1364,8 +1365,12 @@ function attachFirebaseListeners() {
     db.ref(`${evPath}/timer`).on('value', snap => {
         let timerData = snap.val();
         if (!timerData && currentEventCode === 'ESL2026') {
-            db.ref('eslAuction/timer').once('value', legSnap => handleTimerUpdate(legSnap.val()));
+            db.ref('eslAuction/timer').once('value', legSnap => {
+                cachedTimerData = legSnap.val();
+                handleTimerUpdate(cachedTimerData);
+            });
         } else {
+            cachedTimerData = timerData;
             handleTimerUpdate(timerData);
         }
     });
@@ -1431,54 +1436,62 @@ function handleTimerUpdate(timerData) {
     const timerEl = document.getElementById('liveTimer');
     if (!timerEl) return;
     if (!timerData) {
-        timerEl.textContent = '';
-        timerEl.className = 'live-timer';
+        timerEl.textContent = '30';
+        timerEl.className = 'live-timer paused';
         timedOut = false;
         timerRunning = false;
-        disableAllBidButtons(); // No timer yet — disable all buttons including PICK
+        enableAllBidButtons();
         return;
     }
 
     if (timerData.running && timerData.endsAt) {
         timedOut = false;
         timerRunning = true;
-        enableAllBidButtons(); // Timer running — enable PICK and bid buttons
+        enableAllBidButtons();
         const tick = () => {
             const remaining = Math.max(0, Math.ceil((timerData.endsAt - Date.now()) / 1000));
             timerEl.textContent = remaining;
             timerEl.className = 'live-timer' + (remaining <= 5 ? ' urgent' : '');
             if (remaining <= 0) {
                 timerEl.textContent = "TIME'S UP!";
+                timerEl.className = 'live-timer urgent';
                 timedOut = true;
                 timerRunning = false;
                 clearInterval(localTimerInterval);
                 localTimerInterval = null;
-                disableAllBidButtons();
+                disableAllBidButtons(true);
             }
         };
         tick();
         localTimerInterval = setInterval(tick, 250);
     } else {
-        const remaining = timerData.remaining !== undefined ? timerData.remaining : timerData.totalSeconds;
+        const remaining = timerData.remaining !== undefined 
+            ? timerData.remaining 
+            : (timerData.timeLeft !== undefined ? timerData.timeLeft : (timerData.totalSeconds !== undefined ? timerData.totalSeconds : 30));
         if (remaining !== undefined && remaining > 0) {
             timerEl.textContent = remaining;
             timerEl.className = 'live-timer paused';
             timedOut = false;
             timerRunning = false;
-            disableAllBidButtons(); // Timer paused — disable all including PICK
+            enableAllBidButtons();
         } else if (remaining === 0) {
             timerEl.textContent = "TIME'S UP!";
             timerEl.className = 'live-timer urgent';
             timedOut = true;
             timerRunning = false;
-            disableAllBidButtons();
+            disableAllBidButtons(true);
+        } else {
+            timerEl.textContent = '30';
+            timerEl.className = 'live-timer paused';
+            timedOut = false;
+            timerRunning = false;
+            enableAllBidButtons();
         }
     }
 }
 
 function disableAllBidButtons(includePickBtn = true) {
     document.querySelectorAll('.bid-btn').forEach(btn => {
-        // PICK button should remain enabled when timer is paused/not started (only disabled on timeout)
         if (btn.getAttribute('data-amount') === 'pick' && !includePickBtn) return;
         btn.disabled = true;
     });
@@ -1499,25 +1512,23 @@ function enableAllBidButtons() {
     document.querySelectorAll('.bid-btn').forEach(btn => {
         const amtAttr = btn.getAttribute('data-amount');
 
-        // PICK button — only enabled when timer is running and no one has bid yet
+        // PICK button — only enabled when no one has bid yet and team not blocked
         if (amtAttr === 'pick') {
-            btn.disabled = !noBidYet || !timerRunning || teamBlocked;
+            btn.disabled = !noBidYet || timedOut || teamBlocked;
             return;
         }
 
-        // MAX BID button — disabled until someone has picked and timer is running
+        // MAX BID button — disabled until someone has picked
         if (amtAttr === 'max') {
-            btn.disabled = noBidYet || !timerRunning || isMyBid || maxBid <= currentBid || teamBlocked;
+            btn.disabled = noBidYet || isMyBid || maxBid <= currentBid || timedOut || teamBlocked;
             return;
         }
 
-        // Regular bid buttons — disabled until someone has picked and timer is running
+        // Regular bid buttons — disabled until someone has picked
         const amt = parseInt(amtAttr) || 0;
         const newBid = currentBid + amt;
-        let disabled = noBidYet || !timerRunning || isMyBid || newBid > maxBid || teamBlocked;
-        if (amt === 5000 && currentBid > 50000) disabled = true;
-        if (amt === 10000 && currentBid > 100000) disabled = true;
-        btn.disabled = disabled;
+        let disabledBtn = noBidYet || isMyBid || newBid > maxBid || timedOut || teamBlocked;
+        btn.disabled = disabledBtn;
     });
 }
 
@@ -1573,9 +1584,21 @@ function placeBid(amount) {
 
         db.ref(`${evPath}/live/currentBid`).set(newBid);
         db.ref(`${evPath}/live/currentBidder`).set(loggedInTeam.teamName);
+        db.ref(`${evPath}/timer`).set({
+            running: true,
+            endsAt: Date.now() + 30000,
+            totalSeconds: 30,
+            remaining: 30
+        });
         if (currentEventCode === 'ESL2026') {
             db.ref('eslAuction/live/currentBid').set(newBid);
             db.ref('eslAuction/live/currentBidder').set(loggedInTeam.teamName);
+            db.ref('eslAuction/timer').set({
+                running: true,
+                endsAt: Date.now() + 30000,
+                totalSeconds: 30,
+                remaining: 30
+            });
         }
     });
 }
@@ -1626,10 +1649,22 @@ function placePick() {
                 currentBid: baseValue,
                 currentBidder: loggedInTeam.teamName
             });
+            db.ref(`${evPath}/timer`).set({
+                running: true,
+                endsAt: Date.now() + 30000,
+                totalSeconds: 30,
+                remaining: 30
+            });
             if (currentEventCode === 'ESL2026') {
                 db.ref('eslAuction/live').update({
                     currentBid: baseValue,
                     currentBidder: loggedInTeam.teamName
+                });
+                db.ref('eslAuction/timer').set({
+                    running: true,
+                    endsAt: Date.now() + 30000,
+                    totalSeconds: 30,
+                    remaining: 30
                 });
             }
         });
@@ -1667,9 +1702,21 @@ function executeMaxBid() {
     const evPath = `auctions/${currentEventCode}`;
     db.ref(`${evPath}/live/currentBid`).set(maxBid);
     db.ref(`${evPath}/live/currentBidder`).set(loggedInTeam.teamName);
+    db.ref(`${evPath}/timer`).set({
+        running: true,
+        endsAt: Date.now() + 30000,
+        totalSeconds: 30,
+        remaining: 30
+    });
     if (currentEventCode === 'ESL2026') {
         db.ref('eslAuction/live/currentBid').set(maxBid);
         db.ref('eslAuction/live/currentBidder').set(loggedInTeam.teamName);
+        db.ref('eslAuction/timer').set({
+            running: true,
+            endsAt: Date.now() + 30000,
+            totalSeconds: 30,
+            remaining: 30
+        });
     }
 }
 
@@ -1879,24 +1926,19 @@ function renderLiveBanner(data) {
         const noBidYet = !currentBidder;
         const disabledTeamsInit = data.disabledTeams || [];
         const teamBlockedInit = loggedInTeam && disabledTeamsInit.includes(loggedInTeam.teamName);
-        const pickDisabled = !noBidYet || !timerRunning || timedOut || teamBlockedInit;
+        const pickDisabled = !noBidYet || timedOut || teamBlockedInit;
 
-        // Multiple bid buttons with progressive disabling
-        // Bid buttons are disabled until someone has picked (currentBidder is set)
-        const bidAmounts = [5000, 10000, 15000, 20000];
+        // Multiple bid buttons: 1000, 2000, 5000
+        const bidAmounts = [1000, 2000, 5000];
         const bidButtonsHtml = bidAmounts.map(amt => {
             const newBid = currentBid + amt;
-            let disabled = noBidYet || !timerRunning || isMyBid || newBid > maxBid || timedOut || teamBlockedInit;
-            // Disable +5K when current bid exceeds 50K
-            if (amt === 5000 && currentBid > 50000) disabled = true;
-            // Disable +10K when current bid exceeds 100K
-            if (amt === 10000 && currentBid > 100000) disabled = true;
-            return `<button class="bid-btn" data-amount="${amt}" onclick="placeBid(${amt})" ${disabled ? 'disabled' : ''}>+${formatNum(amt)}</button>`;
+            let disabled = noBidYet || isMyBid || newBid > maxBid || timedOut || teamBlockedInit;
+            return `<button class="bid-btn" data-amount="${amt}" onclick="placeBid(${amt})" ${disabled ? 'disabled' : ''}>+₹${formatNum(amt)}</button>`;
         }).join('');
 
-        // MAX BID button — also disabled until someone has picked and timer is running
-        const maxBidBtnDisabled = noBidYet || !timerRunning || isMyBid || maxBid <= currentBid || timedOut || teamBlockedInit;
-        const maxBidBtnHtml = `<button class="bid-btn bid-btn-max" data-amount="max" onclick="confirmMaxBid()" ${maxBidBtnDisabled ? 'disabled' : ''}>MAX BID</button>`;
+        // MAX AMOUNT button
+        const maxBidBtnDisabled = noBidYet || isMyBid || maxBid <= currentBid || timedOut || teamBlockedInit;
+        const maxBidBtnHtml = `<button class="bid-btn bid-btn-max" data-amount="max" onclick="confirmMaxBid()" ${maxBidBtnDisabled ? 'disabled' : ''}>MAX AMOUNT (${formatNum(maxBid)})</button>`;
 
         // Check if team is blocked by admin
         const disabledTeamsList = data.disabledTeams || [];
@@ -1949,7 +1991,17 @@ function renderLiveBanner(data) {
         `;
 
         // Re-apply timer state after re-render
-        db.ref('eslAuction/timer').once('value', snap => handleTimerUpdate(snap.val()));
+        if (cachedTimerData) {
+            handleTimerUpdate(cachedTimerData);
+        } else if (db && currentEventCode) {
+            const tPath = currentEventCode === 'ESL2026' ? 'eslAuction/timer' : `auctions/${currentEventCode}/timer`;
+            db.ref(tPath).once('value', snap => {
+                cachedTimerData = snap.val();
+                handleTimerUpdate(cachedTimerData);
+            });
+        } else {
+            handleTimerUpdate(null);
+        }
 
     } else if (data.status === 'sold' && data.lastResult) {
         const r = data.lastResult;

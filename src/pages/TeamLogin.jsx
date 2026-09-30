@@ -25,6 +25,7 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
   // Live Auction State
   const [liveData, setLiveData] = useState(null);
   const [timerData, setTimerData] = useState(null);
+  const [secondsLeft, setSecondsLeft] = useState(30);
   const [allTeams, setAllTeams] = useState([]);
   const [allPlayers, setAllPlayers] = useState([]);
   const [auctionLog, setAuctionLog] = useState({ sold: [], unsold: [] });
@@ -68,6 +69,28 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
     };
   }, [loggedInTeam, currentEvent]);
 
+  // Smooth countdown ticker for timerData
+  useEffect(() => {
+    if (!timerData) {
+      setSecondsLeft(30);
+      return;
+    }
+
+    if (timerData.running && timerData.endsAt) {
+      const calc = () => Math.max(0, Math.ceil((timerData.endsAt - Date.now()) / 1000));
+      setSecondsLeft(calc());
+      const interval = setInterval(() => {
+        setSecondsLeft(calc());
+      }, 250);
+      return () => clearInterval(interval);
+    } else {
+      const rem = timerData.remaining !== undefined 
+        ? timerData.remaining 
+        : (timerData.timeLeft !== undefined ? timerData.timeLeft : (timerData.totalSeconds || 30));
+      setSecondsLeft(rem !== undefined ? rem : 30);
+    }
+  }, [timerData]);
+
   // Keep my team's purse and roster synchronized with allTeams
   const currentTeamInfo = allTeams.find(t => 
     loggedInTeam && (t.teamName || '').toLowerCase() === (loggedInTeam.teamName || '').toLowerCase()
@@ -105,13 +128,13 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
     setPassword('');
   };
 
-  const handlePlaceBid = async (inc = 10000) => {
+  const handlePlaceBid = async (inc = 1000) => {
     if (!liveData || !liveData.currentPlayer) return;
     const currentBid = Number(liveData.currentBid || liveData.baseValue || 10000);
     const newBid = currentBid + inc;
 
-    if (currentTeamInfo && currentTeamInfo.purseRemaining < newBid) {
-      alert('Insufficient purse to place this bid!');
+    if (newBid > maxBidAmount) {
+      alert(`Bid of ${formatNum(newBid)} exceeds your maximum allowable reserve of ${formatNum(maxBidAmount)}!`);
       return;
     }
 
@@ -123,14 +146,47 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
           currentBidder: currentTeamInfo.teamName,
           lastBidTime: Date.now()
         });
-        // Reset timer to 30s
+        // Reset timer to 30s with endsAt for synchronized countdown
+        const timerDuration = 30;
         await db.ref(`auctions/${currentEvent}/timer`).set({
-          timeLeft: 30,
           running: true,
-          updatedAt: Date.now()
+          endsAt: Date.now() + (timerDuration * 1000),
+          totalSeconds: timerDuration,
+          remaining: timerDuration
         });
       } catch (err) {
         console.error('Bid error:', err);
+      }
+    }
+  };
+
+  const handlePlaceMaxBid = async () => {
+    if (!liveData || !liveData.currentPlayer) return;
+    const currentBid = Number(liveData.currentBid || liveData.baseValue || 10000);
+    if (maxBidAmount <= currentBid) {
+      alert(`Max allowable bid (${formatNum(maxBidAmount)}) is not higher than current bid (${formatNum(currentBid)})!`);
+      return;
+    }
+    const confirmed = window.confirm(`Confirm MAX BID of ${formatNum(maxBidAmount)} on ${liveData.currentPlayer.Name || liveData.currentPlayer.name}?`);
+    if (!confirmed) return;
+
+    const db = await getDb();
+    if (db) {
+      try {
+        await db.ref(`auctions/${currentEvent}/live`).update({
+          currentBid: maxBidAmount,
+          currentBidder: currentTeamInfo.teamName,
+          lastBidTime: Date.now()
+        });
+        const timerDuration = 30;
+        await db.ref(`auctions/${currentEvent}/timer`).set({
+          running: true,
+          endsAt: Date.now() + (timerDuration * 1000),
+          totalSeconds: timerDuration,
+          remaining: timerDuration
+        });
+      } catch (err) {
+        console.error('Max bid error:', err);
       }
     }
   };
@@ -267,6 +323,11 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
 
   const totalSquadCount = myPlayers.length + retainedList.length;
 
+  const minPlayerValue = 10000;
+  const maxPlayers = currentTeamInfo?.maxPlayers || 11;
+  const slotsNeeded = Math.max(0, maxPlayers - totalSquadCount - 1);
+  const maxBidAmount = Math.max(0, (currentTeamInfo?.purseRemaining || 0) - (slotsNeeded * minPlayerValue));
+
   const cp = liveData?.currentPlayer;
   const fullPlayer = cp ? (allPlayers.find(p => 
     (p.Name || p.name || '').trim().toLowerCase() === (cp.Name || cp.name || '').trim().toLowerCase()
@@ -343,11 +404,16 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
         <div className="glass-panel" style={{ padding: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <h3 style={{ fontSize: '1.1rem', color: 'var(--text-main)', margin: 0 }}>⚡ Live Bidding Console</h3>
-            {timerData && timerData.running && (
-              <span className="badge badge-live" style={{ fontSize: '0.85rem', padding: '4px 12px' }}>
-                ⏱️ {timerData.timeLeft}s
-              </span>
-            )}
+            <span className={`badge ${secondsLeft <= 5 && timerData?.running ? 'badge-urgent' : 'badge-live'}`} style={{
+              fontSize: '0.88rem',
+              padding: '4px 14px',
+              fontWeight: 700,
+              background: secondsLeft <= 5 && timerData?.running ? 'rgba(239, 68, 68, 0.25)' : undefined,
+              color: secondsLeft <= 5 && timerData?.running ? '#EF4444' : undefined,
+              borderColor: secondsLeft <= 5 && timerData?.running ? 'rgba(239, 68, 68, 0.5)' : undefined
+            }}>
+              ⏱️ {secondsLeft}s {!timerData?.running ? '(Ready)' : ''}
+            </span>
           </div>
 
           {cp ? (
@@ -381,23 +447,49 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
                 </div>
               </div>
 
-              {/* Bid Controls */}
-              <div style={{ display: 'flex', gap: '12px' }}>
+              {/* Bid Controls: 1000, 2000, 5000, Max Amount */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '10px' }}>
+                <button 
+                  className="btn btn-outline" 
+                  style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
+                  onClick={() => handlePlaceBid(1000)}
+                  id="btnPlaceBid1k"
+                  disabled={isMyBid || (Number(liveData.currentBid || liveData.baseValue || 10000) + 1000 > maxBidAmount)}
+                >
+                  ⚡ +₹1,000
+                </button>
+                <button 
+                  className="btn btn-outline" 
+                  style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
+                  onClick={() => handlePlaceBid(2000)}
+                  id="btnPlaceBid2k"
+                  disabled={isMyBid || (Number(liveData.currentBid || liveData.baseValue || 10000) + 2000 > maxBidAmount)}
+                >
+                  ⚡ +₹2,000
+                </button>
                 <button 
                   className="btn btn-gold" 
-                  style={{ flex: 1, padding: '14px', fontSize: '1.05rem' }}
-                  onClick={() => handlePlaceBid(10000)}
-                  id="btnPlaceBid10k"
+                  style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
+                  onClick={() => handlePlaceBid(5000)}
+                  id="btnPlaceBid5k"
+                  disabled={isMyBid || (Number(liveData.currentBid || liveData.baseValue || 10000) + 5000 > maxBidAmount)}
                 >
-                  ⚡ Bid +₹10,000
+                  ⚡ +₹5,000
                 </button>
                 <button 
                   className="btn btn-primary" 
-                  style={{ flex: 1, padding: '14px', fontSize: '1.05rem' }}
-                  onClick={() => handlePlaceBid(25000)}
-                  id="btnPlaceBid25k"
+                  style={{ 
+                    padding: '12px 6px', 
+                    fontSize: '0.92rem', 
+                    fontWeight: 800, 
+                    background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)', 
+                    borderColor: '#DC2626' 
+                  }}
+                  onClick={handlePlaceMaxBid}
+                  id="btnPlaceBidMax"
+                  disabled={isMyBid || maxBidAmount <= Number(liveData.currentBid || liveData.baseValue || 10000)}
                 >
-                  ⚡ Bid +₹25,000
+                  🔥 Max ({formatNum(maxBidAmount)})
                 </button>
               </div>
             </div>
