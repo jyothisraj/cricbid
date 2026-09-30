@@ -42,8 +42,9 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
   }, [currentEvent]);
 
   const cp = liveData?.currentPlayer;
+  const cpName = ((cp && (cp.Name || cp.name)) || '').trim().toLowerCase();
   const fullPlayer = cp ? (allPlayers.find(p => 
-    (p.Name || p.name || '').trim().toLowerCase() === (cp.Name || cp.name || '').trim().toLowerCase()
+    (p.Name || p.name || '').trim().toLowerCase() === cpName
   ) || {}) : null;
   const mergedPlayer = cp ? Object.assign({}, fullPlayer, cp, {
     details: Object.assign({}, fullPlayer.details || {}, cp.details || {})
@@ -93,7 +94,7 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
 
           {cp ? (
             <div>
-              <PlayerProfileCard player={mergedPlayer} liveData={liveData} />
+              <PlayerProfileCard player={mergedPlayer} liveData={liveData} isSpectator={true} />
 
               {/* Price Banner */}
               <div style={{

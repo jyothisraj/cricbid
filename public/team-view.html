@@ -1927,9 +1927,12 @@ function renderLiveBanner(data) {
             `;
         }
 
-        // Build the two-column player detail card from sheet data or live player
-        const sheetPlayer = findSheetPlayer(cp.name);
-        const playerForCard = sheetPlayer ? Object.assign({}, cp, sheetPlayer) : cp;
+        // Build complete player detail card from sheet / firebase data or live player
+        const pName = cp.name || cp.Name || '';
+        const matchedPlayer = findPlayer(pName) || {};
+        const playerForCard = Object.assign({}, matchedPlayer, cp, {
+            details: Object.assign({}, matchedPlayer.details || {}, cp.details || {})
+        });
         const playerDetailCard = buildPlayerDetailHtml(playerForCard);
 
         banner.innerHTML = `
@@ -2141,13 +2144,52 @@ async function fetchSheetPlayers() {
     }
 }
 
+let firebasePlayers = [];
+
+function _getField(p, ...keys) {
+    if (!p) return '';
+    const searchKeys = keys.map(k => k.toLowerCase().replace(/[\s_'-]/g, ''));
+    for (const k of keys) {
+        if (p[k] !== undefined && p[k] !== null && String(p[k]).trim() !== '') return String(p[k]).trim();
+        if (p.details && p.details[k] !== undefined && p.details[k] !== null && String(p.details[k]).trim() !== '') return String(p.details[k]).trim();
+    }
+    const allEntries = [...Object.entries(p), ...(p.details ? Object.entries(p.details) : [])];
+    for (const [key, val] of allEntries) {
+        if (val === undefined || val === null || String(val).trim() === '') continue;
+        const cleanKey = key.toLowerCase().replace(/[\s_'-]/g, '');
+        if (searchKeys.includes(cleanKey)) return String(val).trim();
+    }
+    return '';
+}
+
 function findSheetPlayer(playerName) {
+    if (!playerName) return null;
+    const clean = String(playerName).trim().toLowerCase();
     return sheetPlayers.find(p => {
-        for (const h of sheetHeaders) {
-            if (_isName(h) && p[h] && p[h].trim() === playerName.trim()) return true;
-        }
-        return false;
+        const pName = _getField(p, 'Name', 'name');
+        return String(pName).trim().toLowerCase() === clean;
     }) || null;
+}
+
+function findPlayer(name) {
+    if (!name) return null;
+    const clean = String(name).trim().toLowerCase();
+    if (!clean) return null;
+    if (sheetPlayers && sheetPlayers.length > 0) {
+        const found = sheetPlayers.find(p => {
+            const pName = _getField(p, 'Name', 'name');
+            return String(pName).trim().toLowerCase() === clean;
+        });
+        if (found) return found;
+    }
+    if (firebasePlayers && firebasePlayers.length > 0) {
+        const found = firebasePlayers.find(p => {
+            const pName = p.Name || p.name || '';
+            return String(pName).trim().toLowerCase() === clean;
+        });
+        if (found) return found;
+    }
+    return null;
 }
 
 function _isName(h) {
@@ -2260,79 +2302,100 @@ function _getName(player) {
 // Build full player detail HTML (same as popup in main page)
 function buildPlayerDetailHtml(player) {
     if (!player) return '';
-    const name = _getName(player);
+    const name = _getField(player, 'Name', 'name', 'playerName') || 'Unknown Player';
     const initials = getInitials(name);
-    const photo = _getPhoto(player);
-    const role = _getRole(player);
-    const club = _getClub(player);
+    const photo = _getField(player, 'Photo', 'photoUrl', 'photo', 'image');
+    const club = _getField(player, 'Club', 'club').toLowerCase();
+    const battingProfile = _getField(player, 'Batting Profile', 'battingProfile', 'Batting Style', 'role');
+    const battingPosition = _getField(player, 'Batting position', 'battingPosition', 'Batting Position', 'batting order');
+    const bowlingProfile = _getField(player, 'Bowling Profile', 'bowlingProfile', 'Bowling Style');
+    const isWk = _getField(player, 'Are you a wicket keeper?', 'wicketKeeper', 'Wicket Keeper', 'keeper').toLowerCase() === 'yes';
 
-    // Separate fields
-    const regularFields = [];
-    const battingFields = [];
-    const bowlingFields = [];
+    const baseVal = parseFloat(
+        player.baseValue ||
+        _getField(player, 'BasePrice', 'Base Price', 'basePrice', 'Ticket Price', 'price') ||
+        MIN_PLAYER_VALUE || 10000
+    );
 
-    const headersList = (sheetHeaders && sheetHeaders.length > 0)
-        ? sheetHeaders
-        : Array.from(new Set([...Object.keys(player), ...Object.keys(player.details || {})])).filter(h => h !== 'details' && h !== 'badges');
+    // Batting stats
+    const matches = _getField(player, 'Matches', 'matches') || '0';
+    const runs = _getField(player, 'Runs', 'runs') || '0';
+    const sr = _getField(player, 'SR', 'Strike Rate', 'sr') || '-';
+    const avg = _getField(player, 'Avg', 'Average', 'avg') || '-';
+    const hundreds = _getField(player, "100's", '100s', 'hundreds') || '0';
+    const fifties = _getField(player, "50's", '50s', 'fifties') || '0';
+    const thirties = _getField(player, "30's", '30s', 'thirties') || '0';
 
-    headersList.forEach(h => {
-        if (_isName(h) || _isPhoto(h) || _isHidden(h) || _isClub(h)) return;
-        const raw = (player[h] !== undefined && player[h] !== null && String(player[h]).trim())
-            ? String(player[h]).trim()
-            : (player.details && player.details[h] ? String(player.details[h]).trim() : '');
-        if (!raw) return;
-        const entry = { header: h, value: raw, icon: _icon(h) };
-        if (_isBat(h)) battingFields.push(entry);
-        else if (_isBowl(h)) bowlingFields.push(entry);
-        else regularFields.push(entry);
-    });
+    // Bowling stats
+    const wickets = _getField(player, 'Wickets', 'wickets') || '0';
+    const economy = _getField(player, 'Economy', 'economy', 'Econ', 'economyRate') || '-';
+    const fiveWkts = _getField(player, '5 Wkts', '5wkts', '5 wickets') || '0';
+    const threeWkts = _getField(player, '3 Wkts', '3wkts', '3 wickets') || '0';
+
+    // Extra details
+    const age = _getField(player, 'Age', 'age');
+    const city = _getField(player, 'Location', 'City', 'city', 'location');
+    const jersey = _getField(player, 'Jersey', 'Jersey Number', 'jerseyNumber');
 
     // Badges
     let badgesHtml = '';
-    const baseVal = parseFloat(player['BasePrice'] || player['Base Price'] || player.basePrice || player['Ticket Price'] || player.price || MIN_PLAYER_VALUE || 10000);
     if (baseVal > 0) badgesHtml += `<span class="pdl-badge" style="background:rgba(212,168,67,0.18);color:var(--bright-gold);border:1px solid rgba(212,168,67,0.35);font-weight:700;">💰 Base: ${formatNum(baseVal)}</span>`;
-    if (role) badgesHtml += `<span class="pdl-badge pdl-badge-role">${esc(role)}</span>`;
-    if (club === 'home') badgesHtml += `<span class="pdl-badge pdl-badge-home">&#127968; Home</span>`;
-    if (club === 'away') badgesHtml += `<span class="pdl-badge pdl-badge-away">&#9992;&#65039; Away</span>`;
+    if (club === 'home') badgesHtml += `<span class="pdl-badge pdl-badge-home">&#127968; Home Club</span>`;
+    else if (club === 'away') badgesHtml += `<span class="pdl-badge pdl-badge-away">&#9992;&#65039; Away Club</span>`;
+    if (battingProfile) badgesHtml += `<span class="pdl-badge pdl-badge-role">🏏 ${esc(battingProfile)}</span>`;
+    if (bowlingProfile && bowlingProfile.toLowerCase() !== 'none') badgesHtml += `<span class="pdl-badge" style="background:#FDF2F8;color:#DB2777;border:1px solid #FBCFE8;">🎯 ${esc(bowlingProfile)}</span>`;
+    if (isWk) badgesHtml += `<span class="pdl-badge" style="background:#FFFBEB;color:#D97706;border:1px solid #FDE68A;">🧤 Wicket Keeper</span>`;
 
-    // Regular info rows
-    let infoHtml = regularFields.map(f => `
-        <div class="pdl-info-row">
-            <div class="pdl-info-icon">${f.icon}</div>
-            <div><div class="pdl-info-label">${esc(f.header)}</div><div class="pdl-info-value">${esc(f.value)}</div></div>
-        </div>
-    `).join('');
+    if (Array.isArray(player.badges)) {
+        player.badges.forEach(b => {
+            badgesHtml += `<span class="pdl-badge" style="background:rgba(212,168,67,0.2);color:#B45309;border:1px solid rgba(212,168,67,0.4);">⭐ ${esc(b.type || 'Icon')} (${esc(b.teamName || '')})</span>`;
+        });
+    }
 
-    // Batting stats
-    if (battingFields.length > 0) {
-        infoHtml += `<div class="pdl-stats-group">
+    // Sub-info
+    let subInfoHtml = '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:0.85rem;color:var(--slate-500);margin-bottom:12px;">';
+    if (battingPosition) subInfoHtml += `<div>Position: <strong style="color:var(--slate-800);">${esc(battingPosition)}</strong></div>`;
+    if (city) subInfoHtml += `<div>City: <strong style="color:var(--slate-800);">${esc(city)}</strong></div>`;
+    if (age) subInfoHtml += `<div>Age: <strong style="color:var(--slate-800);">${esc(age)}</strong></div>`;
+    if (jersey) subInfoHtml += `<div>Jersey: <strong style="color:var(--slate-800);">#${esc(jersey)}</strong></div>`;
+    subInfoHtml += '</div>';
+
+    // Batting Record Group
+    const battingRecordHtml = `
+        <div class="pdl-stats-group">
             <div class="pdl-stats-header"><span>&#127951;</span> Batting Record</div>
-            <div class="pdl-stats-tiles">${battingFields.map(f => `
-                <div class="pdl-stat-tile">
-                    <div class="pdl-stat-icon">${f.icon}</div>
-                    <div class="pdl-stat-value">${esc(f.value)}</div>
-                    <div class="pdl-stat-label">${esc(f.header)}</div>
-                </div>`).join('')}
-            </div></div>`;
-    }
+            <div class="pdl-stats-tiles" style="grid-template-columns: repeat(4, 1fr);">
+                <div class="pdl-stat-tile"><div class="pdl-stat-icon">&#127951;</div><div class="pdl-stat-value">${esc(matches)}</div><div class="pdl-stat-label">Matches</div></div>
+                <div class="pdl-stat-tile"><div class="pdl-stat-icon">&#127942;</div><div class="pdl-stat-value" style="color:var(--primary);">${esc(runs)}</div><div class="pdl-stat-label">Runs</div></div>
+                <div class="pdl-stat-tile"><div class="pdl-stat-icon">&#9889;</div><div class="pdl-stat-value" style="color:#D97706;">${esc(sr)}</div><div class="pdl-stat-label">SR</div></div>
+                <div class="pdl-stat-tile"><div class="pdl-stat-icon">&#128200;</div><div class="pdl-stat-value" style="color:var(--green);">${esc(avg)}</div><div class="pdl-stat-label">Avg</div></div>
+            </div>
+            <div class="pdl-stats-tiles" style="grid-template-columns: repeat(3, 1fr);border-top:1px solid var(--border);">
+                <div class="pdl-stat-tile"><div class="pdl-stat-value" style="font-size:1.05rem;color:#D97706;">${esc(hundreds)}</div><div class="pdl-stat-label">100s</div></div>
+                <div class="pdl-stat-tile"><div class="pdl-stat-value" style="font-size:1.05rem;color:#D97706;">${esc(fifties)}</div><div class="pdl-stat-label">50s</div></div>
+                <div class="pdl-stat-tile"><div class="pdl-stat-value" style="font-size:1.05rem;color:#D97706;">${esc(thirties)}</div><div class="pdl-stat-label">30s</div></div>
+            </div>
+        </div>
+    `;
 
-    // Bowling stats
-    if (bowlingFields.length > 0) {
-        infoHtml += `<div class="pdl-stats-group">
+    // Bowling Record Group
+    const bowlingRecordHtml = `
+        <div class="pdl-stats-group">
             <div class="pdl-stats-header"><span>&#127936;</span> Bowling Record</div>
-            <div class="pdl-stats-tiles">${bowlingFields.map(f => `
-                <div class="pdl-stat-tile">
-                    <div class="pdl-stat-icon">${f.icon}</div>
-                    <div class="pdl-stat-value">${esc(f.value)}</div>
-                    <div class="pdl-stat-label">${esc(f.header)}</div>
-                </div>`).join('')}
-            </div></div>`;
-    }
+            <div class="pdl-stats-tiles" style="grid-template-columns: repeat(4, 1fr);">
+                <div class="pdl-stat-tile"><div class="pdl-stat-icon">&#127936;</div><div class="pdl-stat-value" style="color:#E11D48;">${esc(wickets)}</div><div class="pdl-stat-label">Wkts</div></div>
+                <div class="pdl-stat-tile"><div class="pdl-stat-icon">&#128201;</div><div class="pdl-stat-value" style="color:#7C3AED;">${esc(economy)}</div><div class="pdl-stat-label">Econ</div></div>
+                <div class="pdl-stat-tile"><div class="pdl-stat-icon">&#128293;</div><div class="pdl-stat-value" style="color:#DC2626;">${esc(fiveWkts)}</div><div class="pdl-stat-label">5 Wkts</div></div>
+                <div class="pdl-stat-tile"><div class="pdl-stat-icon">&#127775;</div><div class="pdl-stat-value" style="color:#EA580C;">${esc(threeWkts)}</div><div class="pdl-stat-label">3 Wkts</div></div>
+            </div>
+        </div>
+    `;
 
     // Photo side
     const pDriveId = getDriveFileId(photo);
-    const photoHtml = photo
-        ? `<div class="player-detail-photo-frame"></div><img src="${esc(photo)}" alt="${esc(name)}" onerror="if(!this.dataset.tried && '${pDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${pDriveId}&sz=w600';}else{this.outerHTML='<span class=\\'player-detail-photo-initials\\'>${initials}</span>';}">`
+    const displayPhoto = getDisplayImageUrl(photo);
+    const photoHtml = displayPhoto
+        ? `<div class="player-detail-photo-frame"></div><img src="${esc(displayPhoto)}" alt="${esc(name)}" onerror="if(!this.dataset.tried && '${pDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${pDriveId}&sz=w600';}else{this.outerHTML='<span class=\\'player-detail-photo-initials\\'>${initials}</span>';}">`
         : `<div class="player-detail-photo-frame"></div><span class="player-detail-photo-initials">${initials}</span>`;
 
     return `
@@ -2340,7 +2403,9 @@ function buildPlayerDetailHtml(player) {
             <div class="player-detail-info">
                 <div class="pdl-name">${esc(name)}</div>
                 ${badgesHtml ? `<div class="pdl-badges">${badgesHtml}</div>` : ''}
-                ${infoHtml}
+                ${subInfoHtml}
+                ${battingRecordHtml}
+                ${bowlingRecordHtml}
             </div>
             <div class="player-detail-photo">${photoHtml}</div>
         </div>
