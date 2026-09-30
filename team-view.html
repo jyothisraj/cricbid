@@ -1927,24 +1927,10 @@ function renderLiveBanner(data) {
             `;
         }
 
-        // Build the two-column player detail card from sheet data
+        // Build the two-column player detail card from sheet data or live player
         const sheetPlayer = findSheetPlayer(cp.name);
-        const playerDetailCard = sheetPlayer ? buildPlayerDetailHtml(sheetPlayer) : `
-            <div class="player-detail-layout">
-                <div class="player-detail-info">
-                    <div class="pdl-name">${esc(cp.name)}</div>
-                    <div class="pdl-badges">
-                        ${cp.role ? `<span class="pdl-badge pdl-badge-role">${esc(cp.role)}</span>` : ''}
-                        ${cp.club ? (cp.club.toLowerCase()==='home' ? `<span class="pdl-badge pdl-badge-home">&#127968; Home</span>` : `<span class="pdl-badge pdl-badge-away">&#9992;&#65039; Away</span>`) : ''}
-                    </div>
-                    ${badges ? `<div style="margin-bottom:10px;">${badges}</div>` : ''}
-                    ${detailsHtml ? `<div style="display:flex;flex-direction:column;gap:4px;">${detailsHtml}</div>` : ''}
-                </div>
-                <div class="player-detail-photo">
-                    <div class="player-detail-photo-frame"></div>
-                    ${cp.photo ? `<img src="${esc(cp.photo)}" alt="${esc(cp.name)}" onerror="this.remove()">` : `<span class="player-detail-photo-initials">${getInitials(cp.name)}</span>`}
-                </div>
-            </div>`;
+        const playerForCard = sheetPlayer ? Object.assign({}, cp, sheetPlayer) : cp;
+        const playerDetailCard = buildPlayerDetailHtml(playerForCard);
 
         banner.innerHTML = `
             <div class="live-label"><span class="live-dot"></span> LIVE AUCTION</div>
@@ -2225,15 +2211,46 @@ function _getClub(player) {
     return null;
 }
 
+function _getClub(player) {
+    if (player.club) {
+        const v = String(player.club).trim().toLowerCase();
+        if (v === 'home' || v === 'away') return v;
+    }
+    if (player.Club) {
+        const v = String(player.Club).trim().toLowerCase();
+        if (v === 'home' || v === 'away') return v;
+    }
+    for (const h of sheetHeaders) {
+        if (_isClub(h) && player[h]) {
+            const v = String(player[h]).trim().toLowerCase();
+            if (v === 'home' || v === 'away') return v;
+        }
+    }
+    return null;
+}
+
 function _getRole(player) {
+    if (player.role) return player.role;
     for (const [h, v] of Object.entries(player)) {
         const k = h.toLowerCase();
         if ((k.includes('batting') && k.includes('profile')) || k.includes('batting style')) return v || '';
+    }
+    if (player.details) {
+        for (const [h, v] of Object.entries(player.details)) {
+            const k = h.toLowerCase();
+            if ((k.includes('batting') && k.includes('profile')) || k.includes('batting style')) return v || '';
+        }
+    }
+    for (const [h, v] of Object.entries(player)) {
+        const k = h.toLowerCase();
+        if (k.includes('bowling') && (k.includes('profile') || k.includes('style'))) return v || '';
     }
     return '';
 }
 
 function _getName(player) {
+    if (player.name) return player.name;
+    if (player.Name) return player.Name;
     for (const h of sheetHeaders) {
         if (_isName(h) && player[h]) return player[h];
     }
@@ -2254,11 +2271,17 @@ function buildPlayerDetailHtml(player) {
     const battingFields = [];
     const bowlingFields = [];
 
-    sheetHeaders.forEach(h => {
+    const headersList = (sheetHeaders && sheetHeaders.length > 0)
+        ? sheetHeaders
+        : Array.from(new Set([...Object.keys(player), ...Object.keys(player.details || {})])).filter(h => h !== 'details' && h !== 'badges');
+
+    headersList.forEach(h => {
         if (_isName(h) || _isPhoto(h) || _isHidden(h) || _isClub(h)) return;
-        const val = player[h];
-        if (!val || !val.trim()) return;
-        const entry = { header: h, value: val, icon: _icon(h) };
+        const raw = (player[h] !== undefined && player[h] !== null && String(player[h]).trim())
+            ? String(player[h]).trim()
+            : (player.details && player.details[h] ? String(player.details[h]).trim() : '');
+        if (!raw) return;
+        const entry = { header: h, value: raw, icon: _icon(h) };
         if (_isBat(h)) battingFields.push(entry);
         else if (_isBowl(h)) bowlingFields.push(entry);
         else regularFields.push(entry);

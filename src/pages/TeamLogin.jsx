@@ -5,10 +5,12 @@ import {
   listenTimer, 
   listenTeams, 
   listenAuctionLog,
+  listenPlayers,
   getDb,
   formatNum
 } from '../services/api';
 import ImageWithFallback from '../components/ImageWithFallback';
+import PlayerProfileCard from '../components/PlayerProfileCard';
 
 export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
   const currentEvent = (eventCode || 'ESL2026').toUpperCase();
@@ -24,6 +26,7 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
   const [liveData, setLiveData] = useState(null);
   const [timerData, setTimerData] = useState(null);
   const [allTeams, setAllTeams] = useState([]);
+  const [allPlayers, setAllPlayers] = useState([]);
   const [auctionLog, setAuctionLog] = useState({ sold: [], unsold: [] });
   const [bidAmount, setBidAmount] = useState('');
 
@@ -48,17 +51,20 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
     let unsubTimer = () => {};
     let unsubTeams = () => {};
     let unsubLog = () => {};
+    let unsubPlayers = () => {};
 
     listenLiveAuction(currentEvent, data => setLiveData(data)).then(u => { unsubLive = u; });
     listenTimer(currentEvent, data => setTimerData(data)).then(u => { unsubTimer = u; });
     listenTeams(currentEvent, list => setAllTeams(list)).then(u => { unsubTeams = u; });
     listenAuctionLog(currentEvent, log => setAuctionLog(log)).then(u => { unsubLog = u; });
+    listenPlayers(currentEvent, list => setAllPlayers(list)).then(u => { unsubPlayers = u; });
 
     return () => {
       unsubLive();
       unsubTimer();
       unsubTeams();
       unsubLog();
+      unsubPlayers();
     };
   }, [loggedInTeam, currentEvent]);
 
@@ -262,6 +268,13 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
   const totalSquadCount = myPlayers.length + retainedList.length;
 
   const cp = liveData?.currentPlayer;
+  const fullPlayer = cp ? (allPlayers.find(p => 
+    (p.Name || p.name || '').trim().toLowerCase() === (cp.Name || cp.name || '').trim().toLowerCase()
+  ) || {}) : null;
+  const mergedPlayer = cp ? Object.assign({}, fullPlayer, cp, {
+    details: Object.assign({}, fullPlayer.details || {}, cp.details || {})
+  }) : null;
+
   const isMyBid = liveData && (liveData.currentBidder || '').toLowerCase() === (currentTeamInfo.teamName || '').toLowerCase();
 
   return (
@@ -339,38 +352,8 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
 
           {cp ? (
             <div>
-              {/* Player Card */}
-              <div style={{
-                background: 'rgba(15, 23, 42, 0.6)',
-                borderRadius: 'var(--radius-lg)',
-                border: '1px solid var(--border-subtle)',
-                padding: '20px',
-                marginBottom: '20px',
-                display: 'flex',
-                gap: '20px',
-                flexWrap: 'wrap'
-              }}>
-                <div style={{ width: '110px', height: '110px', borderRadius: '12px', overflow: 'hidden', background: '#0F172A', border: '1px solid var(--border-medium)', flexShrink: 0 }}>
-                  <ImageWithFallback
-                    src={cp.Photo || cp.photoUrl}
-                    alt={cp.Name || cp.name}
-                    size="w600"
-                    fontSize="1.6rem"
-                  />
-                </div>
-
-                <div style={{ flex: 1 }}>
-                  <h3 style={{ fontSize: '1.4rem', color: '#FFFFFF', marginBottom: '6px' }}>{cp.Name || cp.name}</h3>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                    {cp['Batting Profile'] && <span className="badge badge-event">🏏 {cp['Batting Profile']}</span>}
-                    {cp['Bowling Profile'] && <span className="badge badge-live">🎯 {cp['Bowling Profile']}</span>}
-                    {cp['Are you a wicket keeper?'] === 'Yes' && <span className="badge badge-gold">🧤 WK</span>}
-                  </div>
-                  <div style={{ fontSize: '0.82rem', color: 'var(--slate-400)' }}>
-                    Club: <strong style={{ color: 'var(--slate-200)' }}>{cp.Club || cp.club || 'General'}</strong>
-                  </div>
-                </div>
-              </div>
+              {/* Complete Player Profile Card */}
+              <PlayerProfileCard player={mergedPlayer} liveData={liveData} />
 
               {/* Bidding Info */}
               <div style={{

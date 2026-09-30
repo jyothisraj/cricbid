@@ -4,9 +4,11 @@ import {
   listenTimer, 
   listenTeams, 
   listenAuctionLog,
+  listenPlayers,
   formatNum
 } from '../services/api';
 import ImageWithFallback from '../components/ImageWithFallback';
+import PlayerProfileCard from '../components/PlayerProfileCard';
 
 export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
   const currentEvent = (eventCode || 'ESL2026').toUpperCase();
@@ -14,6 +16,7 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
   const [liveData, setLiveData] = useState(null);
   const [timerData, setTimerData] = useState(null);
   const [teams, setTeams] = useState([]);
+  const [allPlayers, setAllPlayers] = useState([]);
   const [auctionLog, setAuctionLog] = useState({ sold: [], unsold: [] });
 
   useEffect(() => {
@@ -21,21 +24,30 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
     let unsubTimer = () => {};
     let unsubTeams = () => {};
     let unsubLog = () => {};
+    let unsubPlayers = () => {};
 
     listenLiveAuction(currentEvent, data => setLiveData(data)).then(u => { unsubLive = u; });
     listenTimer(currentEvent, data => setTimerData(data)).then(u => { unsubTimer = u; });
     listenTeams(currentEvent, list => setTeams(list)).then(u => { unsubTeams = u; });
     listenAuctionLog(currentEvent, log => setAuctionLog(log)).then(u => { unsubLog = u; });
+    listenPlayers(currentEvent, list => setAllPlayers(list)).then(u => { unsubPlayers = u; });
 
     return () => {
       unsubLive();
       unsubTimer();
       unsubTeams();
       unsubLog();
+      unsubPlayers();
     };
   }, [currentEvent]);
 
   const cp = liveData?.currentPlayer;
+  const fullPlayer = cp ? (allPlayers.find(p => 
+    (p.Name || p.name || '').trim().toLowerCase() === (cp.Name || cp.name || '').trim().toLowerCase()
+  ) || {}) : null;
+  const mergedPlayer = cp ? Object.assign({}, fullPlayer, cp, {
+    details: Object.assign({}, fullPlayer.details || {}, cp.details || {})
+  }) : null;
 
   return (
     <div style={{ maxWidth: '1300px', margin: '0 auto', padding: '24px 20px' }}>
@@ -81,39 +93,7 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
 
           {cp ? (
             <div>
-              <div style={{ display: 'flex', gap: '24px', marginBottom: '28px', flexWrap: 'wrap' }}>
-                <div style={{
-                  width: '160px',
-                  height: '160px',
-                  borderRadius: 'var(--radius-lg)',
-                  overflow: 'hidden',
-                  background: '#0F172A',
-                  border: '2px solid var(--border-medium)',
-                  boxShadow: 'var(--shadow-lg)',
-                  flexShrink: 0
-                }}>
-                  <ImageWithFallback
-                    src={cp.Photo || cp.photoUrl}
-                    alt={cp.Name || cp.name}
-                    size="w600"
-                    fontSize="2.5rem"
-                  />
-                </div>
-
-                <div style={{ flex: 1 }}>
-                  <h2 style={{ fontSize: '2.2rem', color: '#FFFFFF', marginBottom: '10px' }}>
-                    {cp.Name || cp.name}
-                  </h2>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '14px' }}>
-                    {cp['Batting Profile'] && <span className="badge badge-event">🏏 {cp['Batting Profile']}</span>}
-                    {cp['Bowling Profile'] && <span className="badge badge-live">🎯 {cp['Bowling Profile']}</span>}
-                    {cp['Are you a wicket keeper?'] === 'Yes' && <span className="badge badge-gold">🧤 WK</span>}
-                  </div>
-                  <div style={{ fontSize: '0.9rem', color: 'var(--slate-400)' }}>
-                    Club: <strong style={{ color: 'var(--slate-200)' }}>{cp.Club || cp.club || 'General'}</strong>
-                  </div>
-                </div>
-              </div>
+              <PlayerProfileCard player={mergedPlayer} liveData={liveData} />
 
               {/* Price Banner */}
               <div style={{

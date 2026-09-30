@@ -964,9 +964,17 @@ function _getPhoto(player) {
 }
 
 function _getClub(player) {
+    if (player.club) {
+        const v = String(player.club).trim().toLowerCase();
+        if (v === 'home' || v === 'away') return v;
+    }
+    if (player.Club) {
+        const v = String(player.Club).trim().toLowerCase();
+        if (v === 'home' || v === 'away') return v;
+    }
     for (const h of sheetHeaders) {
         if (_isClub(h) && player[h]) {
-            const v = player[h].trim().toLowerCase();
+            const v = String(player[h]).trim().toLowerCase();
             if (v === 'home' || v === 'away') return v;
         }
     }
@@ -974,14 +982,27 @@ function _getClub(player) {
 }
 
 function _getRole(player) {
+    if (player.role) return player.role;
     for (const [h, v] of Object.entries(player)) {
         const k = h.toLowerCase();
         if ((k.includes('batting') && k.includes('profile')) || k.includes('batting style')) return v || '';
+    }
+    if (player.details) {
+        for (const [h, v] of Object.entries(player.details)) {
+            const k = h.toLowerCase();
+            if ((k.includes('batting') && k.includes('profile')) || k.includes('batting style')) return v || '';
+        }
+    }
+    for (const [h, v] of Object.entries(player)) {
+        const k = h.toLowerCase();
+        if (k.includes('bowling') && (k.includes('profile') || k.includes('style'))) return v || '';
     }
     return '';
 }
 
 function _getName(player) {
+    if (player.name) return player.name;
+    if (player.Name) return player.Name;
     for (const h of sheetHeaders) { if (_isName(h) && player[h]) return player[h]; }
     return Object.values(player)[0] || 'Unknown';
 }
@@ -995,11 +1016,17 @@ function buildPlayerDetailHtml(player) {
     const club = _getClub(player);
 
     const regular = [], batting = [], bowling = [];
-    sheetHeaders.forEach(h => {
+    const headersList = (sheetHeaders && sheetHeaders.length > 0)
+        ? sheetHeaders
+        : Array.from(new Set([...Object.keys(player), ...Object.keys(player.details || {})])).filter(h => h !== 'details' && h !== 'badges');
+
+    headersList.forEach(h => {
         if (_isName(h) || _isPhoto(h) || _isHidden(h) || _isClub(h)) return;
-        const val = player[h];
-        if (!val || !val.trim()) return;
-        const e = { header: h, value: val, icon: _icon(h) };
+        const raw = (player[h] !== undefined && player[h] !== null && String(player[h]).trim())
+            ? String(player[h]).trim()
+            : (player.details && player.details[h] ? String(player.details[h]).trim() : '');
+        if (!raw) return;
+        const e = { header: h, value: raw, icon: _icon(h) };
         if (_isBat(h)) batting.push(e);
         else if (_isBowl(h)) bowling.push(e);
         else regular.push(e);
@@ -1253,37 +1280,10 @@ function renderAuctionStage(data) {
         const currentBidder = data.currentBidder || '';
         const baseValue = parseFloat(data.baseValue) || MIN_PLAYER_VALUE;
 
-        // Build two-column player detail card from sheet data
+        // Build two-column player detail card from sheet data or live player
         const sheetPlayer = findSheetPlayer(cp.name);
-        let playerCard = '';
-        if (sheetPlayer) {
-            playerCard = buildPlayerDetailHtml(sheetPlayer);
-        } else {
-            // Fallback to Firebase data
-            const initials = getInitials(cp.name);
-            const cpPhotoUrl = getDisplayImageUrl(cp.photo);
-            const cpDriveId = getDriveFileId(cp.photo);
-            const photoHtml = cpPhotoUrl
-                ? `<div class="player-detail-photo-frame"></div><img src="${esc(cpPhotoUrl)}" alt="${esc(cp.name)}" onerror="if(!this.dataset.tried && '${cpDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${cpDriveId}&sz=w600';}else{this.outerHTML='<span class=\\'player-detail-photo-initials\\'>${initials}</span>';}">`
-                : `<div class="player-detail-photo-frame"></div><span class="player-detail-photo-initials">${initials}</span>`;
-
-            let badges = '';
-            if (baseValue > 0) badges += `<span class="pdl-badge" style="background:rgba(212,168,67,0.18);color:var(--bright-gold);border:1px solid rgba(212,168,67,0.35);font-weight:700;">💰 Base: ${formatNum(baseValue)}</span>`;
-            if (cp.role) badges += `<span class="pdl-badge pdl-badge-role">${esc(cp.role)}</span>`;
-            if (cp.club) {
-                if (cp.club.toLowerCase() === 'home') badges += `<span class="pdl-badge pdl-badge-home">&#127968; Home</span>`;
-                else badges += `<span class="pdl-badge pdl-badge-away">&#9992;&#65039; Away</span>`;
-            }
-
-            let detailRows = '';
-            if (cp.details) {
-                Object.entries(cp.details).forEach(([key, val]) => {
-                    detailRows += `<div class="pdl-info-row"><div class="pdl-info-icon">${_icon(key)}</div><div><div class="pdl-info-label">${esc(key)}</div><div class="pdl-info-value">${esc(val)}</div></div></div>`;
-                });
-            }
-
-            playerCard = `<div class="player-detail-layout"><div class="player-detail-info"><div class="pdl-name">${esc(cp.name)}</div>${badges ? `<div class="pdl-badges">${badges}</div>` : ''}${detailRows}</div><div class="player-detail-photo">${photoHtml}</div></div>`;
-        }
+        const playerForCard = sheetPlayer ? Object.assign({}, cp, sheetPlayer) : cp;
+        const playerCard = buildPlayerDetailHtml(playerForCard);
 
         let bidHtml = '';
         if (currentBid > 0 && currentBidder) {

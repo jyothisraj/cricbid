@@ -5601,14 +5601,20 @@ function pickNextPlayer() {
     // currentBid starts at 0 — teams must PICK first to claim at base value
     fbBroadcastLive({
         status: 'bidding',
-        currentPlayer: {
+        currentPlayer: Object.assign({}, player, {
             name: name,
+            Name: name,
             photo: photo || '',
+            photoUrl: photo || '',
+            Photo: photo || '',
             role: role || '',
-            club: playerClub || '',
+            club: playerClub || player.Club || '',
+            Club: playerClub || player.Club || '',
+            basePrice: playerBaseValue,
+            BasePrice: playerBaseValue,
             details: details,
             badges: badges
-        },
+        }),
         currentBid: 0,
         currentBidder: '',
         baseValue: playerBaseValue
