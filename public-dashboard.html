@@ -439,38 +439,123 @@
         .team-stat-val.green { color: var(--green); }
         .team-stat-val.red { color: var(--red); }
 
+        .highest-bid-card {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(220, 38, 38, 0.05) 100%);
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.08);
+        }
+        .hbc-info { flex: 1; min-width: 0; }
+        .hbc-title {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 800;
+            color: #D97706;
+            margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .hbc-player {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--slate-900);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .hbc-team {
+            font-size: 0.74rem;
+            color: var(--slate-500);
+            font-weight: 600;
+        }
+        .hbc-amount {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.55rem;
+            font-weight: 900;
+            color: #D97706;
+            text-align: right;
+            white-space: nowrap;
+        }
+
         .team-players {
             margin-top: 10px;
             padding-top: 8px;
             border-top: 1px solid var(--border);
         }
-        .team-players-title {
+        .team-players-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
             font-size: 0.68rem;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.8px;
             color: var(--slate-500);
-            font-weight: 700;
-            margin-bottom: 6px;
+            font-weight: 800;
+            padding: 4px 0 6px;
+            border-bottom: 1px solid var(--slate-200);
+            margin-bottom: 4px;
+        }
+        .team-players-list {
+            max-height: 220px;
+            overflow-y: auto;
         }
         .team-player-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 4px 0;
+            padding: 5px 0;
             font-size: 0.82rem;
             border-bottom: 1px solid var(--slate-100);
         }
-        .team-player-name { color: var(--slate-700); font-weight: 500; }
-        .team-player-price { color: var(--green); font-weight: 700; font-size: 0.82rem; }
+        .team-player-row:last-child { border-bottom: none; }
+        .team-player-name {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--slate-800);
+            font-weight: 600;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .team-player-amount {
+            font-family: 'Outfit', sans-serif;
+            color: var(--green);
+            font-weight: 800;
+            font-size: 0.88rem;
+            text-align: right;
+            margin-left: 8px;
+            white-space: nowrap;
+        }
+        .team-player-preassigned {
+            font-size: 0.74rem;
+            color: var(--slate-500);
+            font-weight: 600;
+            text-align: right;
+            margin-left: 8px;
+            white-space: nowrap;
+        }
         .team-player-badge {
-            font-size: 0.65rem;
-            padding: 2px 7px;
-            border-radius: 8px;
+            font-size: 0.62rem;
+            padding: 1px 6px;
+            border-radius: 4px;
             font-weight: 700;
             text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
-        .badge-icon { background: var(--primary-subtle); color: var(--primary); }
-        .badge-owner { background: var(--orange-subtle); color: var(--orange); }
+        .badge-icon { background: var(--primary-subtle); color: var(--primary); border: 1px solid var(--primary-border); }
+        .badge-owner { background: var(--orange-subtle); color: var(--orange); border: 1px solid var(--orange-border); }
+        .badge-retained { background: #F3E8FF; color: #7E22CE; border: 1px solid #E9D5FF; }
 
         .empty-msg {
             color: var(--slate-500);
@@ -1493,15 +1578,38 @@ function renderAuctionStage(data) {
 function renderStats() {
     const sold = cachedSoldList.length;
     const unsold = cachedUnsoldList.length;
-    // Will be overridden by renderStatsFromData if stats node exists
+    renderStatsFromData({ sold, unsold, remaining: '-' });
 }
 
 function renderStatsFromData(stats) {
     const bar = document.getElementById('statsBar');
+    if (!bar) return;
+
+    // Calculate overall highest bid in tournament auction
+    let highestBidItem = null;
+    let highestBidVal = 0;
+    if (cachedSoldList && cachedSoldList.length > 0) {
+        cachedSoldList.forEach(s => {
+            const p = parseFloat(s.price || s.soldPrice) || 0;
+            if (p > highestBidVal) {
+                highestBidVal = p;
+                highestBidItem = s;
+            }
+        });
+    }
+
     bar.innerHTML = `
         <div class="stat-chip sold-chip"><div class="stat-num">${stats.sold || 0}</div><div class="stat-label">Sold</div></div>
         <div class="stat-chip passed-chip"><div class="stat-num">${stats.unsold || 0}</div><div class="stat-label">Unsold</div></div>
         <div class="stat-chip"><div class="stat-num">${stats.remaining || 0}</div><div class="stat-label">Remaining</div></div>
+        <div class="highest-bid-card" style="width:100%;margin-top:10px;">
+            <div class="hbc-info">
+                <div class="hbc-title">🔥 Auction Highest Bid</div>
+                <div class="hbc-player">${highestBidItem ? esc(highestBidItem.playerName || highestBidItem.player) : 'Waiting for sales'}</div>
+                <div class="hbc-team">${highestBidItem ? esc(highestBidItem.team) : 'No completed bids yet'}</div>
+            </div>
+            <div class="hbc-amount">${highestBidVal > 0 ? formatNum(highestBidVal) : '₹0'}</div>
+        </div>
     `;
 }
 
@@ -1522,63 +1630,120 @@ function renderTeams() {
 
         // Players bought by this team
         const teamSold = cachedSoldList.filter(s => s.team === t.teamName);
-        const totalSpent = teamSold.reduce((sum, s) => sum + (parseFloat(s.price) || 0), 0);
+        const totalSpent = teamSold.reduce((sum, s) => sum + (parseFloat(s.price || s.soldPrice) || 0), 0);
         const purse = t.purseRemaining || 0;
-        const maxPlayers = MAX_PLAYERS_PER_TEAM || t.maxPlayers || 11;
+        const maxPlayers = parseInt(t.maxPlayers) || (currentEventCode === 'EC2026' ? 13 : (MAX_PLAYERS_PER_TEAM || 11));
 
-        // Squad size includes icon + owner + retained + bought players
-        let squadSize = teamSold.length;
-        if (t.owners && Array.isArray(t.owners) && t.owners.length > 0) squadSize += t.owners.filter(Boolean).length;
-        else if (t.ownerName) squadSize += t.ownerName.split(',').map(s=>s.trim()).filter(Boolean).length;
-        if (t.iconPlayers && Array.isArray(t.iconPlayers) && t.iconPlayers.length > 0) squadSize += t.iconPlayers.filter(Boolean).length;
-        else if (t.iconPlayer) squadSize++;
-        if (t.retainedPlayers && Array.isArray(t.retainedPlayers) && t.retainedPlayers.length > 0) squadSize += t.retainedPlayers.filter(Boolean).length;
-        else if (t.retainedPlayer) squadSize += t.retainedPlayer.split(',').map(s=>s.trim()).filter(Boolean).length;
+        // Build complete squad items (Owner, Icon, Retained, Bought)
+        const squadItems = [];
 
+        // 1. Owners
+        let ownerNames = [];
+        if (t.owners && Array.isArray(t.owners) && t.owners.length > 0) {
+            ownerNames = t.owners.filter(Boolean);
+        } else if (t.ownerName) {
+            ownerNames = t.ownerName.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        ownerNames.forEach(name => {
+            squadItems.push({
+                name: name,
+                badge: 'Owner',
+                badgeClass: 'badge-owner',
+                icon: '👑',
+                priceStr: 'Pre-assigned',
+                isPreassigned: true
+            });
+        });
+
+        // 2. Icon Players
+        let iconNames = [];
+        if (t.iconPlayers && Array.isArray(t.iconPlayers) && t.iconPlayers.length > 0) {
+            iconNames = t.iconPlayers.filter(Boolean);
+        } else if (t.iconPlayer) {
+            iconNames = t.iconPlayer.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        iconNames.forEach(name => {
+            squadItems.push({
+                name: name,
+                badge: 'Icon',
+                badgeClass: 'badge-icon',
+                icon: '⭐',
+                priceStr: 'Pre-assigned',
+                isPreassigned: true
+            });
+        });
+
+        // 3. Retained Players
+        let retainedNames = [];
+        if (t.retainedPlayers && Array.isArray(t.retainedPlayers) && t.retainedPlayers.length > 0) {
+            retainedNames = t.retainedPlayers.filter(Boolean);
+        } else if (t.retainedPlayer) {
+            retainedNames = t.retainedPlayer.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        retainedNames.forEach(name => {
+            squadItems.push({
+                name: name,
+                badge: 'Retained',
+                badgeClass: 'badge-retained',
+                icon: '🔒',
+                priceStr: 'Retained',
+                isPreassigned: true
+            });
+        });
+
+        // 4. Bought players from auction
+        teamSold.forEach(s => {
+            squadItems.push({
+                name: s.playerName || s.player || 'Player',
+                badge: '',
+                badgeClass: '',
+                icon: '🏏',
+                priceStr: formatNum(parseFloat(s.price || s.soldPrice) || 0),
+                isPreassigned: false
+            });
+        });
+
+        const squadSize = squadItems.length;
         const slotsLeft = Math.max(0, maxPlayers - squadSize);
 
         // Max bid = purse - (slotsNeeded - 1) * minPlayerValue
-        // slotsNeeded to fill = slotsLeft, but we need to reserve for remaining (slotsLeft - 1) players
         const maxBid = slotsLeft > 0
             ? purse - (Math.max(0, slotsLeft - 1) * MIN_PLAYER_VALUE)
             : 0;
 
-        // Highest bid (most expensive player)
+        // Highest bid by this team (most expensive player bought)
         const highestBid = teamSold.length > 0
-            ? Math.max(...teamSold.map(s => parseFloat(s.price) || 0))
+            ? Math.max(...teamSold.map(s => parseFloat(s.price || s.soldPrice) || 0))
             : 0;
 
-        // Player list
+        // Player list HTML
         let playersHtml = '';
-        // Show icon/owner/retained first
-        if (t.iconPlayers && Array.isArray(t.iconPlayers) && t.iconPlayers.length > 0) {
-            t.iconPlayers.filter(Boolean).forEach(ip => {
-                playersHtml += `<div class="team-player-row"><span class="team-player-name">${esc(ip)}</span><span class="team-player-badge badge-icon">Icon</span></div>`;
-            });
-        } else if (t.iconPlayer) {
-            playersHtml += `<div class="team-player-row"><span class="team-player-name">${esc(t.iconPlayer)}</span><span class="team-player-badge badge-icon">Icon</span></div>`;
+        if (squadItems.length > 0) {
+            playersHtml = squadItems.map(item => `
+                <div class="team-player-row">
+                    <span class="team-player-name">
+                        <span>${item.icon}</span>
+                        <span>${esc(item.name)}</span>
+                        ${item.badge ? `<span class="team-player-badge ${item.badgeClass}">${item.badge}</span>` : ''}
+                    </span>
+                    <span class="${item.isPreassigned ? 'team-player-preassigned' : 'team-player-amount'}">
+                        ${item.priceStr}
+                    </span>
+                </div>
+            `).join('');
         }
-        if (t.retainedPlayers && Array.isArray(t.retainedPlayers) && t.retainedPlayers.length > 0) {
-            t.retainedPlayers.filter(Boolean).forEach(rp => {
-                playersHtml += `<div class="team-player-row"><span class="team-player-name">${esc(rp)}</span><span class="team-player-badge badge-owner" style="background:#EFF6FF;color:#2563EB;">Retained</span></div>`;
-            });
-        } else if (t.retainedPlayer) {
-            t.retainedPlayer.split(',').map(s=>s.trim()).filter(Boolean).forEach(rp => {
-                playersHtml += `<div class="team-player-row"><span class="team-player-name">${esc(rp)}</span><span class="team-player-badge badge-owner" style="background:#EFF6FF;color:#2563EB;">Retained</span></div>`;
-            });
-        }
-        if (t.ownerName) {
-            playersHtml += `<div class="team-player-row"><span class="team-player-name">${esc(t.ownerName)}</span><span class="team-player-badge badge-owner">Owner</span></div>`;
-        }
-        teamSold.forEach(s => {
-            playersHtml += `<div class="team-player-row"><span class="team-player-name">${esc(s.playerName)}</span><span class="team-player-price">${formatNum(parseFloat(s.price))}</span></div>`;
-        });
 
         return `
             <div class="team-card">
                 <div class="team-card-header">
                     ${logo}
-                    <span class="team-name">${esc(t.teamName)}</span>
+                    <div style="flex:1;min-width:0;">
+                        <div class="team-name">${esc(t.teamName)}</div>
+                        ${ownerNames.length > 0 ? `<div style="font-size:0.72rem;color:var(--slate-500);">Owner: ${esc(ownerNames.join(', '))}</div>` : ''}
+                    </div>
+                    <span class="badge" style="background:var(--primary-subtle);color:var(--primary);border:1px solid var(--primary-border);font-size:0.75rem;padding:3px 8px;font-weight:700;">
+                        ${squadSize}/${maxPlayers}
+                    </span>
                 </div>
                 <div class="team-stats">
                     <div class="team-stat">
@@ -1606,7 +1771,13 @@ function renderTeams() {
                         <div class="team-stat-label">Squad</div>
                     </div>
                 </div>
-                ${playersHtml ? `<div class="team-players"><div class="team-players-title">Squad</div>${playersHtml}</div>` : ''}
+                <div class="team-players">
+                    <div class="team-players-header">
+                        <span>Player (${squadSize})</span>
+                        <span>Bid Amount</span>
+                    </div>
+                    ${playersHtml ? `<div class="team-players-list">${playersHtml}</div>` : `<div style="font-size:0.76rem;color:var(--slate-400);text-align:center;padding:10px 0;">No players in squad yet</div>`}
+                </div>
             </div>
         `;
     }).join('');
