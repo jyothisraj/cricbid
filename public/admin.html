@@ -3002,6 +3002,7 @@ async function fetchSheetTeamsDirect() {
             };
             const teamName = String(getVal(cTeam) || '').trim();
             if (!teamName) return null;
+            const evCode = String(getVal(cEvent) || '').trim().toUpperCase() || 'ESL2026';
             const ownerRaw = String(getVal(cOwner) || '').trim();
             const ownersList = ownerRaw ? ownerRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
             const retainedRaw = cRetained !== -1 ? String(getVal(cRetained) || '').trim() : '';
@@ -3111,10 +3112,6 @@ async function loadAll() {
             if (Array.isArray(localTeams)) {
                 localTeams.forEach(nt => {
                     const cleanCode = (nt.eventCode || '').trim().toUpperCase() || 'ESL2026';
-                    // Purge past contaminated copies of ESL teams
-                    if (['eminent wolves', 'eminent bulls'].includes((nt.teamName || '').toLowerCase().trim()) && cleanCode !== 'ESL2026') {
-                        return;
-                    }
                     nt.eventCode = cleanCode;
                     const idx = allTeams.findIndex(t => t.teamName.toLowerCase() === nt.teamName.toLowerCase() && (t.eventCode || 'ESL2026') === cleanCode);
                     if (idx === -1) allTeams.push(nt);
@@ -3122,14 +3119,6 @@ async function loadAll() {
             }
         } catch(e) {}
 
-        // Sanitize allTeams: ESL2026 teams cannot be under other event codes
-        allTeams = allTeams.filter(t => {
-            const code = (t.eventCode || '').trim().toUpperCase() || 'ESL2026';
-            if (['eminent wolves', 'eminent bulls'].includes((t.teamName || '').toLowerCase().trim()) && code !== 'ESL2026') {
-                return false;
-            }
-            return true;
-        });
         try { localStorage.setItem('cricket_teams', JSON.stringify(allTeams)); } catch(e) {}
 
         if (pData.players && Array.isArray(pData.players) && pData.players.length > 0) {
@@ -4316,7 +4305,8 @@ async function saveEditTeam() {
         }, targetEvent)
     };
 
-    const idx = allTeams.findIndex(t => t.teamName === origName);
+    const origEv = (document.getElementById('tf_origEventCode')?.value || targetEvent).trim().toUpperCase();
+    const idx = allTeams.findIndex(t => t.teamName.toLowerCase() === origName.toLowerCase() && (t.eventCode || 'ESL2026').toUpperCase() === origEv);
     if (idx !== -1) {
         allTeams[idx] = Object.assign(allTeams[idx], updated);
     }
