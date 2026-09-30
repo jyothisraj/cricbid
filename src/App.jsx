@@ -5,6 +5,45 @@ import PublicDashboard from './pages/PublicDashboard';
 import PlayerExplorer from './pages/PlayerExplorer';
 import Admin from './pages/Admin';
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('App render error caught by boundary:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ maxWidth: '600px', margin: '60px auto', padding: '30px', textAlign: 'center' }} className="glass-panel">
+          <div style={{ fontSize: '3rem', marginBottom: '12px' }}>⚠️</div>
+          <h2 style={{ color: '#EF4444', marginBottom: '10px' }}>Something went wrong</h2>
+          <p style={{ color: 'var(--slate-400)', fontSize: '0.9rem', marginBottom: '20px' }}>
+            {this.state.error?.message || 'An unexpected rendering error occurred.'}
+          </p>
+          <button 
+            className="btn btn-primary"
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              window.location.reload();
+            }}
+          >
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const [currentPath, setCurrentPath] = useState(window.location.hash.replace(/^#/, '') || '/');
 
@@ -79,7 +118,9 @@ export default function App() {
 
       {/* Main Content */}
       <main style={{ flex: 1 }}>
-        {pageContent}
+        <ErrorBoundary key={currentPath}>
+          {pageContent}
+        </ErrorBoundary>
       </main>
 
       {/* Footer */}

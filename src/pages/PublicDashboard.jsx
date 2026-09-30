@@ -177,7 +177,7 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
             {soldList.length} <span style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--slate-400)' }}>Sold</span>
           </div>
           <div style={{ fontSize: '0.84rem', color: 'var(--slate-400)' }}>
-            {unsopenList.length} unsold player{unsopenList.length !== 1 ? 's' : ''}
+            {unsoldList.length} unsold player{unsoldList.length !== 1 ? 's' : ''}
           </div>
         </div>
 
