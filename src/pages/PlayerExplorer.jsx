@@ -123,8 +123,6 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
           {filtered.map((p, idx) => {
             const name = p.Name || p.name || 'Unknown';
             const rawPhoto = p.Photo || p.photoUrl || '';
-            const photo = formatImageUrl(rawPhoto);
-            const driveId = getDriveFileId(rawPhoto);
             const isSold = (auctionLog.sold || []).find(s => (s.player || '').toLowerCase() === name.toLowerCase());
 
             return (
