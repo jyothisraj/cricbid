@@ -3251,6 +3251,18 @@ function getDriveFileId(url) {
     return m ? m[1] : '';
 }
 
+function getDisplayImageUrl(url) {
+    if (!url || typeof url !== 'string') return '';
+    const clean = url.trim();
+    if (!clean) return '';
+    if (clean.startsWith('data:')) return clean;
+    const fid = getDriveFileId(clean);
+    if (fid) {
+        return `https://lh3.googleusercontent.com/d/${fid}`;
+    }
+    return clean;
+}
+
 function openImageViewer(imageUrl, title = 'Image Preview', driveUrl = '') {
     if (!imageUrl && !driveUrl) return toast('No image to display', 'warning');
     const modal = document.getElementById('imageViewerModal');
@@ -3282,7 +3294,6 @@ function openImageViewer(imageUrl, title = 'Image Preview', driveUrl = '') {
         driveLink.style.display = resolvedDriveUrl ? 'inline-flex' : 'none';
     }
     if (openTabLink) {
-        // Safe navigation: NEVER point to rate-limited lh3 or thumbnail CDN
         openTabLink.href = resolvedDriveUrl || imageUrl;
         openTabLink.style.display = (resolvedDriveUrl || imageUrl) ? 'inline-flex' : 'none';
     }
@@ -3291,11 +3302,17 @@ function openImageViewer(imageUrl, title = 'Image Preview', driveUrl = '') {
     }
 
     img.onerror = function() {
+        if (driveId && !this.dataset.tried) {
+            this.dataset.tried = '1';
+            this.src = `https://drive.google.com/thumbnail?id=${driveId}&sz=w800`;
+            return;
+        }
         img.style.display = 'none';
         if (fallbackBox) fallbackBox.style.display = 'flex';
     };
 
-    img.src = imageUrl || resolvedDriveUrl;
+    img.dataset.tried = '';
+    img.src = getDisplayImageUrl(imageUrl || resolvedDriveUrl);
     modal.style.display = 'flex';
 }
 
@@ -3420,16 +3437,22 @@ function previewTeamLogo(url, driveUrl = '', teamName = '') {
                 this.src = cachedBase64;
                 return;
             }
+            if (fid && !this.dataset.tried) {
+                this.dataset.tried = '1';
+                this.src = `https://drive.google.com/thumbnail?id=${fid}&sz=w400`;
+                return;
+            }
             img.style.display = 'none';
             if (fallback) fallback.style.display = 'block';
         };
 
+        img.dataset.tried = '';
         if (cleanUrl.startsWith('data:')) {
             img.src = cleanUrl;
         } else if (cachedBase64) {
             img.src = cachedBase64;
         } else if (fid) {
-            img.src = `https://drive.google.com/thumbnail?id=${fid}&sz=w400`;
+            img.src = `https://lh3.googleusercontent.com/d/${fid}`;
         } else {
             img.src = cleanUrl;
         }
@@ -4166,13 +4189,14 @@ async function addTeam() {
     const logoVal = (logoInput?.dataset?.base64) || logoInput?.value.trim() || '';
     const logoDriveId = logoInput?.dataset?.driveFileId || getDriveFileId(logoInput?.value.trim() || '');
     const logoDriveView = logoInput?.dataset?.driveViewUrl || (logoDriveId ? `https://drive.google.com/file/d/${logoDriveId}/view` : '');
+    const sheetLogoUrl = logoDriveView || (logoVal.startsWith('http') ? logoVal : '');
 
     const ownerNameStr = ownerPlayers.join(', ') || document.getElementById('tf_owner')?.value || '';
 
     const newTeam = {
         eventCode: targetEvent,
         teamName: teamName,
-        logoUrl: logoVal,
+        logoUrl: sheetLogoUrl || logoVal,
         driveFileId: logoDriveId,
         driveViewUrl: logoDriveView,
         ownerName: ownerNameStr,
@@ -4211,8 +4235,8 @@ async function addTeam() {
         }
     }
 
-    // 3. Best-effort Apps Script sync
-    apiPost(Object.assign({ action: 'addTeam' }, newTeam)).catch(() => {});
+    // 3. Best-effort Apps Script sync (clean Drive URL in Sheet, never raw base64)
+    apiPost(Object.assign({ action: 'addTeam' }, newTeam, { logoUrl: sheetLogoUrl })).catch(() => {});
 
     toast(`Team "${newTeam.teamName}" added to tournament ${targetEvent}!`, 'success');
 
@@ -4278,13 +4302,14 @@ async function saveEditTeam() {
 
     const logoDriveId = logoInput?.dataset?.driveFileId || existingTeam?.driveFileId || getDriveFileId(logoInput?.value.trim() || '') || getDriveFileId(existingTeam?.logoUrl || '');
     const logoDriveView = logoInput?.dataset?.driveViewUrl || existingTeam?.driveViewUrl || (logoDriveId ? `https://drive.google.com/file/d/${logoDriveId}/view` : '');
+    const sheetLogoUrl = logoDriveView || (logoVal.startsWith('http') ? logoVal : (existingTeam?.driveViewUrl || (existingTeam?.logoUrl && existingTeam.logoUrl.startsWith('http') ? existingTeam.logoUrl : '')));
 
     const ownerNameStr = ownerPlayers.join(', ') || document.getElementById('tf_owner')?.value || '';
 
     const updated = {
         teamName: teamName,
         eventCode: targetEvent,
-        logoUrl: logoVal,
+        logoUrl: sheetLogoUrl || logoVal,
         driveFileId: logoDriveId,
         driveViewUrl: logoDriveView,
         ownerName: ownerNameStr,
@@ -4322,7 +4347,7 @@ async function saveEditTeam() {
         } catch(e) {}
     }
 
-    apiPost(Object.assign({ action: 'updateTeam' }, updated)).catch(() => {});
+    apiPost(Object.assign({ action: 'updateTeam' }, updated, { logoUrl: sheetLogoUrl })).catch(() => {});
 
     toast('Team updated successfully!', 'success');
     showTeamsListView();
@@ -4370,10 +4395,11 @@ function renderTeamsTable() {
     displayedTeams.forEach(t => {
         const evCode = t.eventCode || 'ESL2026';
         const tLogoUrl = (t.logoUrl || '').trim();
-        const tDriveId = getDriveFileId(tLogoUrl);
-        const tDriveView = tDriveId ? `https://drive.google.com/file/d/${tDriveId}/view` : tLogoUrl;
-        const logo = tLogoUrl
-            ? `<div style="cursor:pointer;display:inline-block;" onclick="openImageViewer('${esc(tLogoUrl)}', '${esc(t.teamName)} — Team Logo', '${esc(tDriveView)}')" title="Click to view full logo"><img src="${esc(tLogoUrl)}" class="team-logo-small" alt="${esc(t.teamName)}" onerror="this.outerHTML='<span class=\\\'team-logo-placeholder\\\'>${esc(t.teamName[0])}</span>'"></div>`
+        const tDriveId = getDriveFileId(tLogoUrl) || t.driveFileId;
+        const tDriveView = t.driveViewUrl || (tDriveId ? `https://drive.google.com/file/d/${tDriveId}/view` : tLogoUrl);
+        const displayLogoSrc = getDisplayImageUrl(tLogoUrl);
+        const logo = displayLogoSrc
+            ? `<div style="cursor:pointer;display:inline-block;" onclick="openImageViewer('${esc(tLogoUrl)}', '${esc(t.teamName)} — Team Logo', '${esc(tDriveView)}')" title="Click to view full logo"><img src="${esc(displayLogoSrc)}" class="team-logo-small" alt="${esc(t.teamName)}" onerror="if(!this.dataset.tried && '${tDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${tDriveId}&sz=w300';}else{this.outerHTML='<span class=\\\'team-logo-placeholder\\\'>${esc(t.teamName[0])}</span>';}"></div>`
             : `<span class="team-logo-placeholder">${esc(t.teamName[0])}</span>`;
 
         const owners = getTeamOwners(t);
@@ -4833,7 +4859,7 @@ function renderPlayersTable() {
         let photoThumb = '';
         if (photoUrl) {
             photoThumb = `<div style="width:40px;height:40px;border-radius:8px;overflow:hidden;background:#0F172A;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.1);" onclick="openImageViewer('${esc(photoUrl)}', '${esc(name)} — Player Photo', '${esc(driveViewUrl)}')">
-                <img src="${esc(photoUrl)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.onerror=null;this.parentElement.innerHTML='<span style=\'font-size:0.75rem;font-weight:700;color:var(--slate-400);\'>${esc(getInitials(name))}</span>';" alt="" />
+                <img src="${esc(photoUrl)}" style="width:100%;height:100%;object-fit:cover;" onerror="if(!this.dataset.tried && '${driveFileId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${driveFileId}&sz=w300';}else{this.onerror=null;this.parentElement.innerHTML='<span style=\\\'font-size:0.75rem;font-weight:700;color:var(--slate-400);\\\'>${esc(getInitials(name))}</span>';}" alt="" />
             </div>`;
         } else {
             photoThumb = `<span class="team-logo-placeholder" style="width:40px;height:40px;font-size:0.85rem;border-radius:8px;background:var(--slate-200);color:var(--slate-700);">${esc(getInitials(name))}</span>`;
@@ -4917,6 +4943,7 @@ async function addPlayer() {
     const photoVal = (photoInput?.dataset?.base64) || photoInput?.value.trim() || '';
     const photoDriveId = photoInput?.dataset?.driveFileId || getDriveFileId(photoInput?.value.trim() || '');
     const photoDriveView = photoInput?.dataset?.driveViewUrl || (photoDriveId ? `https://drive.google.com/file/d/${photoDriveId}/view` : '');
+    const sheetPhotoVal = photoDriveView || (photoVal.startsWith('http') ? photoVal : '');
 
     const battingProfile = document.getElementById('pf_battingProfile').value;
     const battingPosition = document.getElementById('pf_battingPosition').value;
@@ -4959,8 +4986,8 @@ async function addPlayer() {
         bowlingProfile: bowlingProfile,
         'Are you a wicket keeper?': wicketKeeper,
         wicketKeeper: wicketKeeper,
-        Photo: photoVal,
-        photoUrl: photoVal,
+        Photo: sheetPhotoVal || photoVal,
+        photoUrl: sheetPhotoVal || photoVal,
         driveFileId: photoDriveId,
         driveViewUrl: photoDriveView,
         Matches: matches || '0',
@@ -4993,8 +5020,8 @@ async function addPlayer() {
         }
     }
 
-    // 3. Google Apps Script sync
-    apiPost(Object.assign({ action: 'addPlayer' }, newPlayer)).catch(() => {});
+    // 3. Google Apps Script sync (clean Drive URL in Sheet, never raw base64)
+    apiPost(Object.assign({ action: 'addPlayer' }, newPlayer, { Photo: sheetPhotoVal, photoUrl: sheetPhotoVal })).catch(() => {});
 
     toast(`Player "${name}" added successfully!`, 'success');
     showPlayersListView();
@@ -5013,10 +5040,15 @@ async function saveEditPlayer() {
     const mobile = document.getElementById('pf_mobile').value.trim();
     const bookingId = document.getElementById('pf_bookingId').value.trim();
     const price = document.getElementById('pf_price').value.trim();
+
+    const pIdx = allPlayers.findIndex(p => getPlayerName(p).toLowerCase() === origName.toLowerCase() && (getPlayerEventCode(p) === (origEventCode || targetEvent) || !origEventCode));
+    if (pIdx === -1) return toast('Player not found in records', 'error');
+
     const photoInput = document.getElementById('pf_photo');
     const photoVal = (photoInput?.dataset?.base64) || photoInput?.value.trim() || '';
-    const photoDriveId = photoInput?.dataset?.driveFileId || getDriveFileId(photoInput?.value.trim() || '');
-    const photoDriveView = photoInput?.dataset?.driveViewUrl || (photoDriveId ? `https://drive.google.com/file/d/${photoDriveId}/view` : '');
+    const photoDriveId = photoInput?.dataset?.driveFileId || (allPlayers[pIdx] && allPlayers[pIdx].driveFileId) || getDriveFileId(photoInput?.value.trim() || '') || getDriveFileId(allPlayers[pIdx]?.Photo || allPlayers[pIdx]?.photoUrl || '');
+    const photoDriveView = photoInput?.dataset?.driveViewUrl || (allPlayers[pIdx] && allPlayers[pIdx].driveViewUrl) || (photoDriveId ? `https://drive.google.com/file/d/${photoDriveId}/view` : '');
+    const sheetPhotoVal = photoDriveView || (photoVal.startsWith('http') ? photoVal : (allPlayers[pIdx]?.driveViewUrl || (allPlayers[pIdx]?.Photo && allPlayers[pIdx].Photo.startsWith('http') ? allPlayers[pIdx].Photo : '')));
 
     const battingProfile = document.getElementById('pf_battingProfile').value;
     const battingPosition = document.getElementById('pf_battingPosition').value;
@@ -5033,9 +5065,6 @@ async function saveEditPlayer() {
     const wickets = document.getElementById('pf_wickets').value;
     const fiveWickets = document.getElementById('pf_fiveWickets').value;
     const economy = document.getElementById('pf_economy').value;
-
-    const pIdx = allPlayers.findIndex(p => getPlayerName(p).toLowerCase() === origName.toLowerCase() && (getPlayerEventCode(p) === (origEventCode || targetEvent) || !origEventCode));
-    if (pIdx === -1) return toast('Player not found in records', 'error');
 
     const updated = Object.assign({}, allPlayers[pIdx], {
         EventCode: targetEvent,
@@ -5060,8 +5089,8 @@ async function saveEditPlayer() {
         bowlingProfile: bowlingProfile,
         'Are you a wicket keeper?': wicketKeeper,
         wicketKeeper: wicketKeeper,
-        Photo: photoVal || allPlayers[pIdx].Photo || allPlayers[pIdx].photoUrl || '',
-        photoUrl: photoVal || allPlayers[pIdx].Photo || allPlayers[pIdx].photoUrl || '',
+        Photo: sheetPhotoVal || photoVal || allPlayers[pIdx].Photo || '',
+        photoUrl: sheetPhotoVal || photoVal || allPlayers[pIdx].photoUrl || '',
         driveFileId: photoDriveId || allPlayers[pIdx].driveFileId || '',
         driveViewUrl: photoDriveView || allPlayers[pIdx].driveViewUrl || '',
         Matches: matches || '0',
@@ -5095,7 +5124,7 @@ async function saveEditPlayer() {
         }
     }
 
-    apiPost(Object.assign({ action: 'updatePlayer', origName: origName, origEventCode: origEventCode }, updated)).catch(() => {});
+    apiPost(Object.assign({ action: 'updatePlayer', origName: origName, origEventCode: origEventCode }, updated, { Photo: sheetPhotoVal, photoUrl: sheetPhotoVal })).catch(() => {});
 
     toast(`Player "${name}" updated successfully!`, 'success');
     showPlayersListView();
@@ -5934,28 +5963,12 @@ function getPlayerPhoto(player) {
     if (!player) return null;
     const direct = player.photoUrl || player.Photo || player.photo || player.image;
     if (direct && typeof direct === 'string' && direct.trim()) {
-        const url = direct.trim();
-        if (url.startsWith('data:')) return url;
-        const dm = url.match(/drive\.google\.com\/file\/d\/([^\/\?]+)/);
-        if (dm) return `https://drive.google.com/thumbnail?id=${dm[1]}&sz=w300`;
-        const dm2 = url.match(/drive\.google\.com\/open\?id=([^&]+)/);
-        if (dm2) return `https://drive.google.com/thumbnail?id=${dm2[1]}&sz=w300`;
-        const dm3 = url.match(/drive\.google\.com\/uc\?.*id=([^&]+)/);
-        if (dm3) return `https://drive.google.com/thumbnail?id=${dm3[1]}&sz=w300`;
-        return url;
+        return getDisplayImageUrl(direct);
     }
     for (const h of playerHeaders) {
         if (isPhotoField(h) && player[h]) {
-            let url = player[h].trim();
-            if (!url) continue;
-            if (url.startsWith('data:')) return url;
-            const dm = url.match(/drive\.google\.com\/file\/d\/([^\/\?]+)/);
-            if (dm) return `https://drive.google.com/thumbnail?id=${dm[1]}&sz=w300`;
-            const dm2 = url.match(/drive\.google\.com\/open\?id=([^&]+)/);
-            if (dm2) return `https://drive.google.com/thumbnail?id=${dm2[1]}&sz=w300`;
-            const dm3 = url.match(/drive\.google\.com\/uc\?.*id=([^&]+)/);
-            if (dm3) return `https://drive.google.com/thumbnail?id=${dm3[1]}&sz=w300`;
-            return url;
+            const val = String(player[h]).trim();
+            if (val) return getDisplayImageUrl(val);
         }
     }
     return null;
@@ -6115,8 +6128,10 @@ function buildTeamsStatusHtml() {
             else if (c === 'away') awayCount++;
         });
 
-        const logo = t.logoUrl
-            ? `<img src="${esc(t.logoUrl)}" class="auction-team-logo" onerror="this.outerHTML='<div class=\\'auction-team-logo-ph\\'>${esc(t.teamName[0])}</div>'">`
+        const tDriveId = getDriveFileId(t.logoUrl) || t.driveFileId;
+        const displayLogo = getDisplayImageUrl(t.logoUrl);
+        const logo = displayLogo
+            ? `<img src="${esc(displayLogo)}" class="auction-team-logo" alt="${esc(t.teamName)}" onerror="if(!this.dataset.tried && '${tDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${tDriveId}&sz=w300';}else{this.outerHTML='<div class=\\'auction-team-logo-ph\\'>${esc(t.teamName[0])}</div>';}">`
             : `<div class="auction-team-logo-ph">${esc(t.teamName[0])}</div>`;
 
         return `<div class="auction-team-row">

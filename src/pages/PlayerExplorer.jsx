@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { listenPlayers, listenAuctionLog, formatNum } from '../services/api';
+import { listenPlayers, listenAuctionLog, formatNum, formatImageUrl, getDriveFileId } from '../services/api';
 
 export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
   const currentEvent = (eventCode || 'ESL2026').toUpperCase();
@@ -121,7 +121,9 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px' }}>
           {filtered.map((p, idx) => {
             const name = p.Name || p.name || 'Unknown';
-            const photo = p.Photo || p.photoUrl || '';
+            const rawPhoto = p.Photo || p.photoUrl || '';
+            const photo = formatImageUrl(rawPhoto);
+            const driveId = getDriveFileId(rawPhoto);
             const isSold = (auctionLog.sold || []).find(s => (s.player || '').toLowerCase() === name.toLowerCase());
 
             return (
@@ -144,10 +146,22 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
                     }}
                   >
                     {photo ? (
-                      <img src={photo} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <span style={{ fontWeight: 800, color: 'var(--slate-400)' }}>{name[0]}</span>
-                    )}
+                      <img 
+                        src={photo} 
+                        alt={name} 
+                        onError={(e) => {
+                          if (driveId && !e.currentTarget.dataset.tried) {
+                            e.currentTarget.dataset.tried = '1';
+                            e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveId}&sz=w600`;
+                          } else {
+                            e.currentTarget.style.display = 'none';
+                            if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'inline';
+                          }
+                        }}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                      />
+                    ) : null}
+                    <span style={{ fontWeight: 800, color: 'var(--slate-400)', display: photo ? 'none' : 'inline' }}>{name[0]}</span>
                   </div>
 
                   <div>

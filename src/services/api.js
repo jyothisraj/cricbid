@@ -51,6 +51,27 @@ export function getDriveFileId(url) {
   return '';
 }
 
+export function formatImageUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const clean = url.trim();
+  if (!clean) return '';
+  if (clean.startsWith('data:')) return clean;
+  const fid = getDriveFileId(clean);
+  if (fid) {
+    return `https://lh3.googleusercontent.com/d/${fid}`;
+  }
+  return clean;
+}
+
+export function getDriveThumbnailUrl(url, size = 'w600') {
+  if (!url || typeof url !== 'string') return '';
+  const fid = getDriveFileId(url);
+  if (fid) {
+    return `https://drive.google.com/thumbnail?id=${fid}&sz=${size}`;
+  }
+  return url;
+}
+
 export function formatNum(n) {
   if (n === null || n === undefined || isNaN(n)) return '-';
   return '₹' + new Intl.NumberFormat('en-IN').format(n);

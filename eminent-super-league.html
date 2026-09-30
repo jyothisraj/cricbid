@@ -1135,26 +1135,34 @@
             return isBattingStat(header) || isBowlingStat(header);
         }
 
+        function getDriveFileId(url) {
+            if (!url) return '';
+            const m = url.match(/\/d\/([a-zA-Z0-9_-]{20,})/i) || url.match(/[?&]id=([a-zA-Z0-9_-]{20,})/i);
+            return m ? m[1] : '';
+        }
+
+        function getDisplayImageUrl(url) {
+            if (!url || typeof url !== 'string') return '';
+            const clean = url.trim();
+            if (!clean) return '';
+            if (clean.startsWith('data:')) return clean;
+            const fid = getDriveFileId(clean);
+            if (fid) {
+                return `https://lh3.googleusercontent.com/d/${fid}`;
+            }
+            return clean;
+        }
+
         function getPlayerPhoto(player) {
+            if (!player) return null;
+            const direct = player.photoUrl || player.Photo || player.photo || player.image;
+            if (direct && typeof direct === 'string' && direct.trim()) {
+                return getDisplayImageUrl(direct);
+            }
             for (const header of headers) {
                 if (isPhotoField(header) && player[header]) {
-                    let url = player[header].trim();
-                    if (!url) continue;
-                    // Convert Google Drive share links to direct image URLs
-                    const driveMatch = url.match(/drive\.google\.com\/file\/d\/([^\/]+)/);
-                    if (driveMatch) {
-                        return `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w600`;
-                    }
-                    const driveOpenMatch = url.match(/drive\.google\.com\/open\?id=([^&]+)/);
-                    if (driveOpenMatch) {
-                        return `https://drive.google.com/thumbnail?id=${driveOpenMatch[1]}&sz=w600`;
-                    }
-                    // Convert Google Drive /uc? links
-                    const driveUcMatch = url.match(/drive\.google\.com\/uc\?.*id=([^&]+)/);
-                    if (driveUcMatch) {
-                        return `https://drive.google.com/thumbnail?id=${driveUcMatch[1]}&sz=w600`;
-                    }
-                    return url;
+                    const val = String(player[header]).trim();
+                    if (val) return getDisplayImageUrl(val);
                 }
             }
             return null;
@@ -1262,8 +1270,9 @@
                 card.className = 'player-card';
                 card.style.animationDelay = `${Math.min(index * 0.04, 1.5)}s`;
 
+                const pDriveId = getDriveFileId(photo);
                 const avatarContent = photo
-                    ? `<img src="${escapeHtml(photo)}" alt="${escapeHtml(name)}" loading="lazy" onerror="this.parentElement.innerHTML='${initials}'">`
+                    ? `<img src="${escapeHtml(photo)}" alt="${escapeHtml(name)}" loading="lazy" onerror="if(!this.dataset.tried && '${pDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${pDriveId}&sz=w300';}else{this.parentElement.innerHTML='${initials}';}">`
                     : initials;
 
                 const clubBadgeHtml = club
@@ -1293,8 +1302,9 @@
 
             // Set big photo on right side
             const photoSide = document.getElementById('modalPhotoSide');
+            const pDriveId = getDriveFileId(photo);
             if (photo) {
-                photoSide.innerHTML = `<div class="modal-photo-frame"></div><img class="modal-big-photo" src="${escapeHtml(photo)}" alt="${escapeHtml(name)}" onerror="this.remove(); this.parentElement.innerHTML += '<span class=\\'modal-photo-initials\\'>${initials}</span><div class=\\'modal-photo-frame\\'></div>'">`;
+                photoSide.innerHTML = `<div class="modal-photo-frame"></div><img class="modal-big-photo" src="${escapeHtml(photo)}" alt="${escapeHtml(name)}" onerror="if(!this.dataset.tried && '${pDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${pDriveId}&sz=w600';}else{this.remove(); this.parentElement.innerHTML += '<span class=\\'modal-photo-initials\\'>${initials}</span><div class=\\'modal-photo-frame\\'></div>';}">`;
             } else {
                 photoSide.innerHTML = `<div class="modal-photo-frame"></div><span class="modal-photo-initials">${initials}</span>`;
             }

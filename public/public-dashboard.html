@@ -930,17 +930,34 @@ const _fieldIcons = {
 };
 function _icon(h) { return _fieldIcons[h.toLowerCase().trim()] || '&#128196;'; }
 
+function getDriveFileId(url) {
+    if (!url) return '';
+    const m = url.match(/\/d\/([a-zA-Z0-9_-]{20,})/i) || url.match(/[?&]id=([a-zA-Z0-9_-]{20,})/i);
+    return m ? m[1] : '';
+}
+
+function getDisplayImageUrl(url) {
+    if (!url || typeof url !== 'string') return '';
+    const clean = url.trim();
+    if (!clean) return '';
+    if (clean.startsWith('data:')) return clean;
+    const fid = getDriveFileId(clean);
+    if (fid) {
+        return `https://lh3.googleusercontent.com/d/${fid}`;
+    }
+    return clean;
+}
+
 function _getPhoto(player) {
+    if (!player) return null;
+    const direct = player.photoUrl || player.Photo || player.photo || player.image;
+    if (direct && typeof direct === 'string' && direct.trim()) {
+        return getDisplayImageUrl(direct);
+    }
     for (const h of sheetHeaders) {
         if (_isPhoto(h) && player[h]) {
-            let url = player[h].trim();
-            const m = url.match(/drive\.google\.com\/file\/d\/([^\/]+)/);
-            if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w600`;
-            const m2 = url.match(/drive\.google\.com\/open\?id=([^&]+)/);
-            if (m2) return `https://drive.google.com/thumbnail?id=${m2[1]}&sz=w600`;
-            const m3 = url.match(/drive\.google\.com\/uc\?.*id=([^&]+)/);
-            if (m3) return `https://drive.google.com/thumbnail?id=${m3[1]}&sz=w600`;
-            return url;
+            const val = String(player[h]).trim();
+            if (val) return getDisplayImageUrl(val);
         }
     }
     return null;
@@ -1000,8 +1017,9 @@ function buildPlayerDetailHtml(player) {
     if (batting.length) info += `<div class="pdl-stats-group"><div class="pdl-stats-header"><span>&#127951;</span> Batting Record</div><div class="pdl-stats-tiles">${batting.map(f => `<div class="pdl-stat-tile"><div class="pdl-stat-icon">${f.icon}</div><div class="pdl-stat-value">${esc(f.value)}</div><div class="pdl-stat-label">${esc(f.header)}</div></div>`).join('')}</div></div>`;
     if (bowling.length) info += `<div class="pdl-stats-group"><div class="pdl-stats-header"><span>&#127936;</span> Bowling Record</div><div class="pdl-stats-tiles">${bowling.map(f => `<div class="pdl-stat-tile"><div class="pdl-stat-icon">${f.icon}</div><div class="pdl-stat-value">${esc(f.value)}</div><div class="pdl-stat-label">${esc(f.header)}</div></div>`).join('')}</div></div>`;
 
+    const pDriveId = getDriveFileId(photo);
     const photoHtml = photo
-        ? `<div class="player-detail-photo-frame"></div><img src="${esc(photo)}" alt="${esc(name)}" onerror="this.remove()">`
+        ? `<div class="player-detail-photo-frame"></div><img src="${esc(photo)}" alt="${esc(name)}" onerror="if(!this.dataset.tried && '${pDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${pDriveId}&sz=w600';}else{this.outerHTML='<span class=\\'player-detail-photo-initials\\'>${initials}</span>';}">`
         : `<div class="player-detail-photo-frame"></div><span class="player-detail-photo-initials">${initials}</span>`;
 
     return `<div class="player-detail-layout"><div class="player-detail-info"><div class="pdl-name">${esc(name)}</div>${badges ? `<div class="pdl-badges">${badges}</div>` : ''}${info}</div><div class="player-detail-photo">${photoHtml}</div></div>`;
@@ -1243,8 +1261,10 @@ function renderAuctionStage(data) {
         } else {
             // Fallback to Firebase data
             const initials = getInitials(cp.name);
-            const photoHtml = cp.photo
-                ? `<div class="player-detail-photo-frame"></div><img src="${esc(cp.photo)}" alt="${esc(cp.name)}" onerror="this.remove()">`
+            const cpPhotoUrl = getDisplayImageUrl(cp.photo);
+            const cpDriveId = getDriveFileId(cp.photo);
+            const photoHtml = cpPhotoUrl
+                ? `<div class="player-detail-photo-frame"></div><img src="${esc(cpPhotoUrl)}" alt="${esc(cp.name)}" onerror="if(!this.dataset.tried && '${cpDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${cpDriveId}&sz=w600';}else{this.outerHTML='<span class=\\'player-detail-photo-initials\\'>${initials}</span>';}">`
                 : `<div class="player-detail-photo-frame"></div><span class="player-detail-photo-initials">${initials}</span>`;
 
             let badges = '';
@@ -1342,8 +1362,10 @@ function renderTeams() {
     }
 
     container.innerHTML = cachedTeamsData.map(t => {
-        const logo = t.logoUrl
-            ? `<img src="${esc(t.logoUrl)}" class="team-logo" onerror="this.outerHTML='<div class=\\'team-logo-ph\\'>${esc(t.teamName[0])}</div>'">`
+        const tDriveId = getDriveFileId(t.logoUrl) || t.driveFileId;
+        const displayLogo = getDisplayImageUrl(t.logoUrl);
+        const logo = displayLogo
+            ? `<img src="${esc(displayLogo)}" class="team-logo" alt="${esc(t.teamName)}" onerror="if(!this.dataset.tried && '${tDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${tDriveId}&sz=w300';}else{this.outerHTML='<div class=\\'team-logo-ph\\'>${esc(t.teamName[0])}</div>';}">`
             : `<div class="team-logo-ph">${esc(t.teamName[0])}</div>`;
 
         // Players bought by this team

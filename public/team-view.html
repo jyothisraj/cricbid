@@ -1771,6 +1771,24 @@ function doLogout() {
     document.getElementById('dashboard').style.display = 'none';
 }
 
+function getDriveFileId(url) {
+    if (!url) return '';
+    const m = url.match(/\/d\/([a-zA-Z0-9_-]{20,})/i) || url.match(/[?&]id=([a-zA-Z0-9_-]{20,})/i);
+    return m ? m[1] : '';
+}
+
+function getDisplayImageUrl(url) {
+    if (!url || typeof url !== 'string') return '';
+    const clean = url.trim();
+    if (!clean) return '';
+    if (clean.startsWith('data:')) return clean;
+    const fid = getDriveFileId(clean);
+    if (fid) {
+        return `https://lh3.googleusercontent.com/d/${fid}`;
+    }
+    return clean;
+}
+
 // ===================== DASHBOARD =====================
 function showDashboard() {
     document.getElementById('loginScreen').style.display = 'none';
@@ -1780,7 +1798,9 @@ function showDashboard() {
     document.getElementById('topTeamName').textContent = team.teamName;
     updateTopEventBadge();
     if (team.logoUrl) {
-        document.getElementById('topLogo').innerHTML = `<img src="${esc(team.logoUrl)}" class="team-logo-top" onerror="this.outerHTML='<div class=\\'team-logo-top-placeholder\\'>${esc(team.teamName[0])}</div>'">`;
+        const tDriveId = getDriveFileId(team.logoUrl);
+        const displayLogo = getDisplayImageUrl(team.logoUrl);
+        document.getElementById('topLogo').innerHTML = `<img src="${esc(displayLogo)}" class="team-logo-top" alt="${esc(team.teamName)}" onerror="if(!this.dataset.tried && '${tDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${tDriveId}&sz=w300';}else{this.outerHTML='<div class=\\'team-logo-top-placeholder\\'>${esc(team.teamName[0])}</div>';}">`;
     } else {
         document.getElementById('topLogo').innerHTML = `<div class="team-logo-top-placeholder">${esc(team.teamName[0])}</div>`;
     }
@@ -1996,8 +2016,9 @@ function renderMySquad(soldList) {
             const photo = sp ? _getPhoto(sp) : null;
             const club = sp ? _getClub(sp) : null;
             const initials = getInitials(p.playerName);
+            const pDriveId = getDriveFileId(photo);
             const avatarHtml = photo
-                ? `<img src="${esc(photo)}" alt="${esc(p.playerName)}" onerror="this.parentElement.innerHTML='${initials}'">`
+                ? `<img src="${esc(photo)}" alt="${esc(p.playerName)}" onerror="if(!this.dataset.tried && '${pDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${pDriveId}&sz=w300';}else{this.parentElement.innerHTML='${initials}';}">`
                 : initials;
             const clubHtml = club === 'home' ? `<span class="squad-card-club" style="color:#2ecc71;">&#127968;</span>`
                 : club === 'away' ? `<span class="squad-card-club" style="color:#5dade2;">&#9992;&#65039;</span>` : '';
@@ -2028,8 +2049,10 @@ function renderTeamsOverview(teamsData) {
         return;
     }
     teamsEl.innerHTML = teamsData.map(t => {
-        const logo = t.logoUrl
-            ? `<img src="${esc(t.logoUrl)}" class="team-overview-logo" onerror="this.outerHTML='<div class=\\'team-overview-logo-ph\\'>${esc(t.teamName[0])}</div>'">`
+        const tDriveId = getDriveFileId(t.logoUrl);
+        const displayLogo = getDisplayImageUrl(t.logoUrl);
+        const logo = displayLogo
+            ? `<img src="${esc(displayLogo)}" class="team-overview-logo" alt="${esc(t.teamName)}" onerror="if(!this.dataset.tried && '${tDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${tDriveId}&sz=w300';}else{this.outerHTML='<div class=\\'team-overview-logo-ph\\'>${esc(t.teamName[0])}</div>';}">`
             : `<div class="team-overview-logo-ph">${esc(t.teamName[0])}</div>`;
         const ownerLine = t.ownerName ? `<span style="color:var(--text-gold);font-size:0.75rem;">&#128081; ${esc(t.ownerName)}</span>` : '';
         let iconLine = '';
@@ -2178,16 +2201,15 @@ const _fieldIcons = {
 function _icon(h) { return _fieldIcons[h.toLowerCase().trim()] || '&#128196;'; }
 
 function _getPhoto(player) {
+    if (!player) return null;
+    const direct = player.photoUrl || player.Photo || player.photo || player.image;
+    if (direct && typeof direct === 'string' && direct.trim()) {
+        return getDisplayImageUrl(direct);
+    }
     for (const h of sheetHeaders) {
         if (_isPhoto(h) && player[h]) {
-            let url = player[h].trim();
-            const m = url.match(/drive\.google\.com\/file\/d\/([^\/]+)/);
-            if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w600`;
-            const m2 = url.match(/drive\.google\.com\/open\?id=([^&]+)/);
-            if (m2) return `https://drive.google.com/thumbnail?id=${m2[1]}&sz=w600`;
-            const m3 = url.match(/drive\.google\.com\/uc\?.*id=([^&]+)/);
-            if (m3) return `https://drive.google.com/thumbnail?id=${m3[1]}&sz=w600`;
-            return url;
+            const val = String(player[h]).trim();
+            if (val) return getDisplayImageUrl(val);
         }
     }
     return null;
@@ -2285,8 +2307,9 @@ function buildPlayerDetailHtml(player) {
     }
 
     // Photo side
+    const pDriveId = getDriveFileId(photo);
     const photoHtml = photo
-        ? `<div class="player-detail-photo-frame"></div><img src="${esc(photo)}" alt="${esc(name)}" onerror="this.remove()">`
+        ? `<div class="player-detail-photo-frame"></div><img src="${esc(photo)}" alt="${esc(name)}" onerror="if(!this.dataset.tried && '${pDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${pDriveId}&sz=w600';}else{this.outerHTML='<span class=\\'player-detail-photo-initials\\'>${initials}</span>';}">`
         : `<div class="player-detail-photo-frame"></div><span class="player-detail-photo-initials">${initials}</span>`;
 
     return `
@@ -2313,8 +2336,9 @@ function openTvPlayerModal(playerName) {
 
     // Photo side
     const modalPhoto = document.getElementById('tvModalPhoto');
+    const modalPDriveId = getDriveFileId(photo);
     if (photo) {
-        modalPhoto.innerHTML = `<div class="tv-modal-photo-frame"></div><img src="${esc(photo)}" alt="${esc(name)}" onerror="this.remove()">`;
+        modalPhoto.innerHTML = `<div class="tv-modal-photo-frame"></div><img src="${esc(photo)}" alt="${esc(name)}" onerror="if(!this.dataset.tried && '${modalPDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${modalPDriveId}&sz=w600';}else{this.outerHTML='<span class=\\'tv-modal-photo-initials\\'>${initials}</span>';}">`;
     } else {
         modalPhoto.innerHTML = `<div class="tv-modal-photo-frame"></div><span class="tv-modal-photo-initials">${initials}</span>`;
     }
