@@ -409,7 +409,7 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
           </div>
         </div>
 
-        {/* Purse & Squad Summary */}
+        {/* Purse, Max Bid & Squad Summary */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px', flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: '0.72rem', color: 'var(--slate-400)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Purse Remaining</div>
@@ -419,8 +419,15 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
           </div>
 
           <div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--slate-400)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Squad Count</div>
+            <div style={{ fontSize: '0.72rem', color: '#10B981', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Max Allowable Bid</div>
             <div style={{ fontSize: '1.4rem', fontFamily: 'Outfit', fontWeight: 800, color: '#10B981' }}>
+              {formatNum(maxBidAmount)}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--slate-400)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Squad Count</div>
+            <div style={{ fontSize: '1.4rem', fontFamily: 'Outfit', fontWeight: 800, color: '#38BDF8' }}>
               {totalSquadCount} / {maxPlayers}
             </div>
           </div>
@@ -645,7 +652,7 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
         </div>
       </div>
 
-      {/* All Franchises Squads, Purse & Max Bid Radar */}
+      {/* Other Franchises Squads, Purse & Max Bid Radar */}
       <div style={{ marginTop: '36px' }}>
         <div style={{
           display: 'flex',
@@ -657,7 +664,7 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
         }}>
           <div>
             <h3 style={{ fontSize: '1.25rem', color: '#FFFFFF', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span>🛡️</span> All Franchises Squads &amp; Max Bid Radar
+              <span>🛡️</span> Other Franchises Squads &amp; Max Bid Radar
             </h3>
             <p style={{ margin: '4px 0 0', fontSize: '0.84rem', color: 'var(--slate-400)' }}>
               Monitor competing teams' purse balances, max allowable bids, total spend, and acquired player rosters
@@ -665,25 +672,30 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
           </div>
 
           {/* Quick Filter Buttons */}
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => setSelectedOtherTeamFilter('ALL')}
-              className={`btn btn-sm ${selectedOtherTeamFilter === 'ALL' ? 'btn-primary' : 'btn-outline'}`}
-              style={{ fontSize: '0.78rem', padding: '5px 12px' }}
-            >
-              All Teams ({allTeams.length})
-            </button>
-            {allTeams.map(t => (
-              <button
-                key={t.teamName}
-                onClick={() => setSelectedOtherTeamFilter(t.teamName)}
-                className={`btn btn-sm ${selectedOtherTeamFilter === t.teamName ? 'btn-primary' : 'btn-outline'}`}
-                style={{ fontSize: '0.78rem', padding: '5px 12px' }}
-              >
-                {t.teamName}
-              </button>
-            ))}
-          </div>
+          {(() => {
+            const competitorTeams = allTeams.filter(t => (t.teamName || '').toLowerCase() !== (currentTeamInfo.teamName || '').toLowerCase());
+            return (
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setSelectedOtherTeamFilter('ALL')}
+                  className={`btn btn-sm ${selectedOtherTeamFilter === 'ALL' ? 'btn-primary' : 'btn-outline'}`}
+                  style={{ fontSize: '0.78rem', padding: '5px 12px' }}
+                >
+                  All Competitors ({competitorTeams.length})
+                </button>
+                {competitorTeams.map(t => (
+                  <button
+                    key={t.teamName}
+                    onClick={() => setSelectedOtherTeamFilter(t.teamName)}
+                    className={`btn btn-sm ${selectedOtherTeamFilter === t.teamName ? 'btn-primary' : 'btn-outline'}`}
+                    style={{ fontSize: '0.78rem', padding: '5px 12px' }}
+                  >
+                    {t.teamName}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Squad Cards Grid */}
@@ -692,13 +704,23 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
           gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
           gap: '20px'
         }}>
-          {(selectedOtherTeamFilter === 'ALL'
-            ? allTeams
-            : allTeams.filter(t => (t.teamName || '').toLowerCase() === selectedOtherTeamFilter.toLowerCase())
-          ).map(t => {
-            const isMe = (t.teamName || '').toLowerCase() === (currentTeamInfo.teamName || '').toLowerCase();
-            const teamBought = (auctionLog.sold || []).filter(s => (s.team || '').toLowerCase() === (t.teamName || '').toLowerCase());
-            const teamSpent = teamBought.reduce((sum, s) => sum + (parseFloat(s.price || s.soldPrice) || 0), 0);
+          {(() => {
+            const competitorTeams = allTeams.filter(t => (t.teamName || '').toLowerCase() !== (currentTeamInfo.teamName || '').toLowerCase());
+            const displayTeams = selectedOtherTeamFilter === 'ALL'
+              ? competitorTeams
+              : competitorTeams.filter(t => (t.teamName || '').toLowerCase() === selectedOtherTeamFilter.toLowerCase());
+
+            if (displayTeams.length === 0) {
+              return (
+                <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '30px', color: 'var(--slate-400)' }}>
+                  No competitor teams found.
+                </div>
+              );
+            }
+
+            return displayTeams.map(t => {
+              const teamBought = (auctionLog.sold || []).filter(s => (s.team || '').toLowerCase() === (t.teamName || '').toLowerCase());
+              const teamSpent = teamBought.reduce((sum, s) => sum + (parseFloat(s.price || s.soldPrice) || 0), 0);
 
             const ownerList = Array.isArray(t.owners) && t.owners.length > 0
               ? t.owners.filter(Boolean)
@@ -855,9 +877,10 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
                 </div>
               </div>
             );
-          })}
-        </div>
+          });
+        })()}
       </div>
     </div>
-  );
+  </div>
+);
 }

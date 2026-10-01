@@ -2158,7 +2158,12 @@ function renderTeamsOverview(teamsData) {
         teamsEl.innerHTML = '<div class="empty-msg">No teams registered.</div>';
         return;
     }
-    teamsEl.innerHTML = teamsData.map(t => {
+    const otherTeams = teamsData.filter(t => !loggedInTeam || (t.teamName || '').toLowerCase() !== (loggedInTeam.teamName || '').toLowerCase());
+    if (otherTeams.length === 0) {
+        teamsEl.innerHTML = '<div class="empty-msg">No other teams found.</div>';
+        return;
+    }
+    teamsEl.innerHTML = otherTeams.map(t => {
         const tDriveId = getDriveFileId(t.logoUrl);
         const displayLogo = getDisplayImageUrl(t.logoUrl);
         const logo = displayLogo
