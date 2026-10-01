@@ -2140,6 +2140,18 @@ function renderMySquad(soldList) {
     }
 }
 
+function calcMaxBidForTeam(t) {
+    if (!t) return 0;
+    const teamBought = (cachedSoldList || []).filter(p => p.team === t.teamName);
+    const ownerList = t.owners && Array.isArray(t.owners) && t.owners.length > 0 ? t.owners.filter(Boolean) : (t.ownerName ? t.ownerName.split(',').map(s=>s.trim()).filter(Boolean) : []);
+    const iconList = t.iconPlayers && Array.isArray(t.iconPlayers) && t.iconPlayers.length > 0 ? t.iconPlayers.filter(Boolean) : (t.iconPlayer ? t.iconPlayer.split(',').map(s=>s.trim()).filter(Boolean) : []);
+    const retainedList = t.retainedPlayers && Array.isArray(t.retainedPlayers) && t.retainedPlayers.length > 0 ? t.retainedPlayers.filter(Boolean) : (t.retainedPlayer ? t.retainedPlayer.split(',').map(s=>s.trim()).filter(Boolean) : []);
+    const squadSize = ownerList.length + iconList.length + retainedList.length + teamBought.length;
+    const maxP = MAX_PLAYERS_PER_TEAM || t.maxPlayers || 13;
+    const slotsNeeded = Math.max(0, maxP - squadSize - 1);
+    return Math.max(0, (t.purseRemaining || 0) - (slotsNeeded * MIN_PLAYER_VALUE));
+}
+
 function renderTeamsOverview(teamsData) {
     const teamsEl = document.getElementById('teamsOverview');
     if (!teamsData || teamsData.length === 0) {
@@ -2152,27 +2164,58 @@ function renderTeamsOverview(teamsData) {
         const logo = displayLogo
             ? `<img src="${esc(displayLogo)}" class="team-overview-logo" alt="${esc(t.teamName)}" onerror="if(!this.dataset.tried && '${tDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${tDriveId}&sz=w300';}else{this.outerHTML='<div class=\\'team-overview-logo-ph\\'>${esc(t.teamName[0])}</div>';}">`
             : `<div class="team-overview-logo-ph">${esc(t.teamName[0])}</div>`;
-        const ownerLine = t.ownerName ? `<span style="color:var(--text-gold);font-size:0.75rem;">&#128081; ${esc(t.ownerName)}</span>` : '';
-        let iconLine = '';
-        if (t.iconPlayers && Array.isArray(t.iconPlayers) && t.iconPlayers.length > 0) {
-            iconLine = t.iconPlayers.map(p => `<span style="color:var(--text-gold);font-size:0.75rem;">&#11088; ${esc(p)}</span>`).join(' ');
-        } else if (t.iconPlayer) {
-            iconLine = `<span style="color:var(--text-gold);font-size:0.75rem;">&#11088; ${esc(t.iconPlayer)}</span>`;
-        }
-        let retainedLine = '';
-        if (t.retainedPlayers && Array.isArray(t.retainedPlayers) && t.retainedPlayers.length > 0) {
-            retainedLine = t.retainedPlayers.map(p => `<span style="color:var(--primary);font-size:0.75rem;">🔒 ${esc(p)}</span>`).join(' ');
-        } else if (t.retainedPlayer) {
-            retainedLine = `<span style="color:var(--primary);font-size:0.75rem;">🔒 ${esc(t.retainedPlayer)}</span>`;
-        }
-        const keyPlayers = (ownerLine || iconLine || retainedLine) ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:3px;">${ownerLine}${iconLine}${retainedLine}</div>` : '';
-        return `<div class="team-overview-card">
-            ${logo}
-            <div class="team-overview-info">
-                <div class="team-overview-name">${esc(t.teamName)}</div>
-                ${keyPlayers}
+
+        const teamBought = (cachedSoldList || []).filter(p => p.team === t.teamName);
+        const teamSpent = teamBought.reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0);
+
+        const ownerList = t.owners && Array.isArray(t.owners) && t.owners.length > 0 ? t.owners.filter(Boolean) : (t.ownerName ? t.ownerName.split(',').map(s=>s.trim()).filter(Boolean) : []);
+        const iconList = t.iconPlayers && Array.isArray(t.iconPlayers) && t.iconPlayers.length > 0 ? t.iconPlayers.filter(Boolean) : (t.iconPlayer ? t.iconPlayer.split(',').map(s=>s.trim()).filter(Boolean) : []);
+        const retainedList = t.retainedPlayers && Array.isArray(t.retainedPlayers) && t.retainedPlayers.length > 0 ? t.retainedPlayers.filter(Boolean) : (t.retainedPlayer ? t.retainedPlayer.split(',').map(s=>s.trim()).filter(Boolean) : []);
+
+        const squadSize = ownerList.length + iconList.length + retainedList.length + teamBought.length;
+        const maxP = MAX_PLAYERS_PER_TEAM || t.maxPlayers || 13;
+        const teamMaxBid = calcMaxBidForTeam(t);
+
+        const playerListHtml = teamBought.length > 0 ? `
+            <div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border);">
+                <div style="font-size:0.7rem;text-transform:uppercase;color:var(--slate-500);font-weight:700;margin-bottom:4px;">Acquired Players (${teamBought.length})</div>
+                ${teamBought.map(p => `
+                    <div style="display:flex;justify-content:space-between;font-size:0.8rem;padding:3px 0;border-bottom:1px solid var(--slate-100);">
+                        <span style="color:var(--slate-800);font-weight:600;">🏏 ${esc(p.playerName || p.player)}</span>
+                        <span style="color:var(--green);font-family:'Outfit',sans-serif;font-weight:700;">${formatNum(parseFloat(p.price))}</span>
+                    </div>
+                `).join('')}
             </div>
-            <div class="team-overview-purse">${formatNum(t.purseRemaining)}</div>
+        ` : '';
+
+        return `<div class="team-overview-card" style="display:block;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    ${logo}
+                    <div>
+                        <div class="team-overview-name" style="font-size:1.05rem;font-weight:700;">${esc(t.teamName)}</div>
+                        <div style="font-size:0.75rem;color:var(--slate-500);">${ownerList.length > 0 ? `Owner: ${ownerList.join(', ')}` : ''}</div>
+                    </div>
+                </div>
+                <span class="badge-sold" style="background:var(--primary-subtle);color:var(--primary);border-color:var(--primary-border);">${squadSize} / ${maxP}</span>
+            </div>
+
+            <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;background:var(--slate-50);border-radius:8px;padding:8px;text-align:center;border:1px solid var(--border);">
+                <div>
+                    <div style="font-size:0.65rem;color:var(--slate-500);text-transform:uppercase;">Purse</div>
+                    <div style="font-family:'Outfit',sans-serif;font-size:0.9rem;font-weight:800;color:var(--slate-900);">${formatNum(t.purseRemaining)}</div>
+                </div>
+                <div>
+                    <div style="font-size:0.65rem;color:var(--green);text-transform:uppercase;font-weight:700;">Max Bid</div>
+                    <div style="font-family:'Outfit',sans-serif;font-size:0.9rem;font-weight:800;color:var(--green);">${formatNum(teamMaxBid)}</div>
+                </div>
+                <div>
+                    <div style="font-size:0.65rem;color:var(--slate-500);text-transform:uppercase;">Spent</div>
+                    <div style="font-family:'Outfit',sans-serif;font-size:0.9rem;font-weight:800;color:var(--slate-700);">${formatNum(teamSpent)}</div>
+                </div>
+            </div>
+
+            ${playerListHtml}
         </div>`;
     }).join('');
 }

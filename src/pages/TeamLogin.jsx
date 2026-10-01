@@ -32,6 +32,7 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
   const [auctionLog, setAuctionLog] = useState({ sold: [], unsold: [] });
   const [auctionSettings, setAuctionSettings] = useState(null);
   const [bidAmount, setBidAmount] = useState('');
+  const [selectedOtherTeamFilter, setSelectedOtherTeamFilter] = useState('ALL');
 
   // Check existing session
   useEffect(() => {
@@ -641,6 +642,220 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
               </table>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* All Franchises Squads, Purse & Max Bid Radar */}
+      <div style={{ marginTop: '36px' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '14px',
+          marginBottom: '20px'
+        }}>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', color: '#FFFFFF', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span>🛡️</span> All Franchises Squads &amp; Max Bid Radar
+            </h3>
+            <p style={{ margin: '4px 0 0', fontSize: '0.84rem', color: 'var(--slate-400)' }}>
+              Monitor competing teams' purse balances, max allowable bids, total spend, and acquired player rosters
+            </p>
+          </div>
+
+          {/* Quick Filter Buttons */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setSelectedOtherTeamFilter('ALL')}
+              className={`btn btn-sm ${selectedOtherTeamFilter === 'ALL' ? 'btn-primary' : 'btn-outline'}`}
+              style={{ fontSize: '0.78rem', padding: '5px 12px' }}
+            >
+              All Teams ({allTeams.length})
+            </button>
+            {allTeams.map(t => (
+              <button
+                key={t.teamName}
+                onClick={() => setSelectedOtherTeamFilter(t.teamName)}
+                className={`btn btn-sm ${selectedOtherTeamFilter === t.teamName ? 'btn-primary' : 'btn-outline'}`}
+                style={{ fontSize: '0.78rem', padding: '5px 12px' }}
+              >
+                {t.teamName}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Squad Cards Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '20px'
+        }}>
+          {(selectedOtherTeamFilter === 'ALL'
+            ? allTeams
+            : allTeams.filter(t => (t.teamName || '').toLowerCase() === selectedOtherTeamFilter.toLowerCase())
+          ).map(t => {
+            const isMe = (t.teamName || '').toLowerCase() === (currentTeamInfo.teamName || '').toLowerCase();
+            const teamBought = (auctionLog.sold || []).filter(s => (s.team || '').toLowerCase() === (t.teamName || '').toLowerCase());
+            const teamSpent = teamBought.reduce((sum, s) => sum + (parseFloat(s.price || s.soldPrice) || 0), 0);
+
+            const ownerList = Array.isArray(t.owners) && t.owners.length > 0
+              ? t.owners.filter(Boolean)
+              : (t.ownerName ? t.ownerName.split(',').map(s => s.trim()).filter(Boolean) : []);
+
+            const iconList = Array.isArray(t.iconPlayers) && t.iconPlayers.length > 0
+              ? t.iconPlayers.filter(Boolean)
+              : (t.iconPlayer ? t.iconPlayer.split(',').map(s => s.trim()).filter(Boolean) : []);
+
+            const retainedList = Array.isArray(t.retainedPlayers) && t.retainedPlayers.length > 0
+              ? t.retainedPlayers.filter(Boolean)
+              : (t.retainedPlayer ? t.retainedPlayer.split(',').map(s => s.trim()).filter(Boolean) : []);
+
+            const squadCount = ownerList.length + iconList.length + retainedList.length + teamBought.length;
+            const maxPlayers = parseInt(t.maxPlayers) || 13;
+            const minPlayerValue = parseInt(auctionSettings?.min_player_value || auctionSettings?.minPlayerValue || 10000);
+            const slotsNeeded = Math.max(0, maxPlayers - squadCount - 1);
+            const teamMaxBid = Math.max(0, (t.purseRemaining || 0) - (slotsNeeded * minPlayerValue));
+
+            const squadItems = [
+              ...ownerList.map(name => ({ name, tag: 'Owner', tagColor: '#F59E0B', tagBg: 'rgba(245, 158, 11, 0.18)', priceStr: 'Pre-assigned', isPreassigned: true })),
+              ...iconList.map(name => ({ name, tag: 'Icon', tagColor: '#38BDF8', tagBg: 'rgba(56, 189, 248, 0.18)', priceStr: 'Pre-assigned', isPreassigned: true })),
+              ...retainedList.map(name => ({ name, tag: 'Retained', tagColor: '#A78BFA', tagBg: 'rgba(167, 139, 250, 0.18)', priceStr: 'Retained', isPreassigned: true })),
+              ...teamBought.map(s => ({ name: s.playerName || s.player, tag: '', priceStr: formatNum(s.price || s.soldPrice), price: parseFloat(s.price || s.soldPrice) || 0 }))
+            ];
+
+            return (
+              <div key={t.teamName} className="glass-panel" style={{
+                padding: '20px',
+                display: 'flex',
+                flexDirection: 'column',
+                border: isMe ? '1px solid var(--primary-border)' : undefined,
+                background: isMe ? 'linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%)' : undefined
+              }}>
+                {/* Team Card Header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    {t.logoUrl ? (
+                      <div style={{ width: '36px', height: '36px', borderRadius: '8px', overflow: 'hidden', flexShrink: 0 }}>
+                        <ImageWithFallback src={t.logoUrl} alt={t.teamName} size="w100" fontSize="0.9rem" />
+                      </div>
+                    ) : null}
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <h4 style={{ fontSize: '1.05rem', color: '#FFFFFF', margin: 0, fontWeight: 700 }}>
+                          {t.teamName}
+                        </h4>
+                        {isMe && <span className="badge badge-gold" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>Your Team</span>}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--slate-400)' }}>
+                        {ownerList.length > 0 ? `Owner: ${ownerList.join(', ')}` : ''}
+                      </div>
+                    </div>
+                  </div>
+
+                  <span className="badge badge-live" style={{ fontSize: '0.8rem', padding: '3px 9px' }}>
+                    {squadCount} / {maxPlayers}
+                  </span>
+                </div>
+
+                {/* Team Financial Mini Stats Grid: Purse, Max Bid, Spent */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: '8px',
+                  background: 'rgba(15, 23, 42, 0.6)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '10px',
+                  marginBottom: '14px',
+                  textAlign: 'center'
+                }}>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>Purse</div>
+                    <div style={{ fontSize: '0.92rem', fontFamily: 'Outfit', fontWeight: 800, color: '#F59E0B' }}>
+                      {formatNum(t.purseRemaining)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', color: '#10B981', textTransform: 'uppercase', fontWeight: 700 }}>Max Bid</div>
+                    <div style={{ fontSize: '0.92rem', fontFamily: 'Outfit', fontWeight: 800, color: '#10B981' }}>
+                      {formatNum(teamMaxBid)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>Spent</div>
+                    <div style={{ fontSize: '0.92rem', fontFamily: 'Outfit', fontWeight: 800, color: 'var(--slate-200)' }}>
+                      {formatNum(teamSpent)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Squad Members List */}
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    fontSize: '0.72rem',
+                    textTransform: 'uppercase',
+                    color: 'var(--slate-400)',
+                    fontWeight: 700,
+                    letterSpacing: '0.05em',
+                    padding: '4px 6px 8px',
+                    borderBottom: '1px solid rgba(255, 255, 255, 0.08)'
+                  }}>
+                    <span>Player ({squadCount})</span>
+                    <span>Bid Amount</span>
+                  </div>
+
+                  {squadItems.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '20px 12px', color: 'var(--slate-500)', fontSize: '0.82rem' }}>
+                      No players acquired yet.
+                    </div>
+                  ) : (
+                    <div>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <tbody>
+                          {squadItems.map((item, idx) => (
+                            <tr key={idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                              <td style={{ padding: '7px 6px', color: '#FFFFFF', fontWeight: 600 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span>{item.isPreassigned ? (item.tag === 'Owner' ? '👑' : item.tag === 'Icon' ? '⭐' : '🔒') : '🏏'}</span>
+                                  <span>{item.name}</span>
+                                  {item.tag ? (
+                                    <span style={{
+                                      fontSize: '0.65rem',
+                                      padding: '1px 6px',
+                                      borderRadius: '4px',
+                                      background: item.tagBg,
+                                      color: item.tagColor,
+                                      fontWeight: 700
+                                    }}>
+                                      {item.tag}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </td>
+                              <td style={{
+                                padding: '7px 6px',
+                                textAlign: 'right',
+                                fontFamily: item.isPreassigned ? 'inherit' : 'Outfit',
+                                fontWeight: item.isPreassigned ? 500 : 700,
+                                color: item.isPreassigned ? 'var(--slate-400)' : '#F59E0B',
+                                fontSize: item.isPreassigned ? '0.78rem' : '0.92rem'
+                              }}>
+                                {item.priceStr}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
