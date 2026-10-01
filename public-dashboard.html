@@ -1458,24 +1458,29 @@ function handleTimerUpdate(timerData) {
         return;
     }
 
-    if (timerData.running && timerData.endsAt) {
+    if (timerData.running) {
+        const getRemaining = () => {
+            if (timerData.seconds !== undefined) return timerData.seconds;
+            if (timerData.remaining !== undefined) return timerData.remaining;
+            if (timerData.endsAt) return Math.max(0, Math.ceil((timerData.endsAt - Date.now()) / 1000));
+            return 30;
+        };
         const tick = () => {
-            const remaining = Math.max(0, Math.ceil((timerData.endsAt - Date.now()) / 1000));
+            const remaining = getRemaining();
             timerEl.textContent = remaining;
             timerEl.className = 'timer-display' + (remaining <= 5 ? ' urgent' : '');
             if (remaining <= 0) {
                 timerEl.textContent = "TIME'S UP!";
                 timerEl.className = 'timer-display urgent';
-                clearInterval(localTimerInterval);
-                localTimerInterval = null;
+                if (localTimerInterval) { clearInterval(localTimerInterval); localTimerInterval = null; }
             }
         };
         tick();
         localTimerInterval = setInterval(tick, 250);
     } else {
-        const remaining = timerData.remaining !== undefined 
+        const remaining = timerData.seconds !== undefined ? timerData.seconds : (timerData.remaining !== undefined 
             ? timerData.remaining 
-            : (timerData.timeLeft !== undefined ? timerData.timeLeft : (timerData.totalSeconds !== undefined ? timerData.totalSeconds : 30));
+            : (timerData.timeLeft !== undefined ? timerData.timeLeft : (timerData.totalSeconds !== undefined ? timerData.totalSeconds : 30)));
         if (remaining !== undefined && remaining > 0) {
             timerEl.textContent = remaining;
             timerEl.className = 'timer-display paused';

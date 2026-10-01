@@ -1450,12 +1450,18 @@ function handleTimerUpdate(timerData) {
         return;
     }
 
-    if (timerData.running && timerData.endsAt) {
+    if (timerData.running) {
         timedOut = false;
         timerRunning = true;
         enableAllBidButtons();
+        const getRemaining = () => {
+            if (timerData.seconds !== undefined) return timerData.seconds;
+            if (timerData.remaining !== undefined) return timerData.remaining;
+            if (timerData.endsAt) return Math.max(0, Math.ceil((timerData.endsAt - Date.now()) / 1000));
+            return 30;
+        };
         const tick = () => {
-            const remaining = Math.max(0, Math.ceil((timerData.endsAt - Date.now()) / 1000));
+            const remaining = getRemaining();
             timerEl.textContent = remaining;
             timerEl.className = 'live-timer' + (remaining <= 5 ? ' urgent' : '');
             if (remaining <= 0) {
@@ -1463,17 +1469,16 @@ function handleTimerUpdate(timerData) {
                 timerEl.className = 'live-timer urgent';
                 timedOut = true;
                 timerRunning = false;
-                clearInterval(localTimerInterval);
-                localTimerInterval = null;
+                if (localTimerInterval) { clearInterval(localTimerInterval); localTimerInterval = null; }
                 disableAllBidButtons(true);
             }
         };
         tick();
         localTimerInterval = setInterval(tick, 250);
     } else {
-        const remaining = timerData.remaining !== undefined 
+        const remaining = timerData.seconds !== undefined ? timerData.seconds : (timerData.remaining !== undefined 
             ? timerData.remaining 
-            : (timerData.timeLeft !== undefined ? timerData.timeLeft : (timerData.totalSeconds !== undefined ? timerData.totalSeconds : 30));
+            : (timerData.timeLeft !== undefined ? timerData.timeLeft : (timerData.totalSeconds !== undefined ? timerData.totalSeconds : 30)));
         if (remaining !== undefined && remaining > 0) {
             timerEl.textContent = remaining;
             timerEl.className = 'live-timer paused';
@@ -1592,21 +1597,9 @@ function placeBid(amount) {
 
         db.ref(`${evPath}/live/currentBid`).set(newBid);
         db.ref(`${evPath}/live/currentBidder`).set(loggedInTeam.teamName);
-        db.ref(`${evPath}/timer`).set({
-            running: true,
-            endsAt: Date.now() + 30000,
-            totalSeconds: 30,
-            remaining: 30
-        });
         if (currentEventCode === 'ESL2026') {
             db.ref('eslAuction/live/currentBid').set(newBid);
             db.ref('eslAuction/live/currentBidder').set(loggedInTeam.teamName);
-            db.ref('eslAuction/timer').set({
-                running: true,
-                endsAt: Date.now() + 30000,
-                totalSeconds: 30,
-                remaining: 30
-            });
         }
     });
 }
@@ -1657,22 +1650,10 @@ function placePick() {
                 currentBid: baseValue,
                 currentBidder: loggedInTeam.teamName
             });
-            db.ref(`${evPath}/timer`).set({
-                running: true,
-                endsAt: Date.now() + 30000,
-                totalSeconds: 30,
-                remaining: 30
-            });
             if (currentEventCode === 'ESL2026') {
                 db.ref('eslAuction/live').update({
                     currentBid: baseValue,
                     currentBidder: loggedInTeam.teamName
-                });
-                db.ref('eslAuction/timer').set({
-                    running: true,
-                    endsAt: Date.now() + 30000,
-                    totalSeconds: 30,
-                    remaining: 30
                 });
             }
         });
@@ -1715,21 +1696,9 @@ function executeMaxBid() {
     const evPath = `auctions/${currentEventCode}`;
     db.ref(`${evPath}/live/currentBid`).set(maxBid);
     db.ref(`${evPath}/live/currentBidder`).set(loggedInTeam.teamName);
-    db.ref(`${evPath}/timer`).set({
-        running: true,
-        endsAt: Date.now() + 30000,
-        totalSeconds: 30,
-        remaining: 30
-    });
     if (currentEventCode === 'ESL2026') {
         db.ref('eslAuction/live/currentBid').set(maxBid);
         db.ref('eslAuction/live/currentBidder').set(loggedInTeam.teamName);
-        db.ref('eslAuction/timer').set({
-            running: true,
-            endsAt: Date.now() + 30000,
-            totalSeconds: 30,
-            remaining: 30
-        });
     }
 }
 

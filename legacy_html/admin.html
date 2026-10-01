@@ -1966,14 +1966,13 @@ function fbBroadcastLive(data) {
 function fbBroadcastTimer(running, seconds) {
     if (!db) return;
     const totalSecs = parseInt(settings.timer_seconds) || 30;
-    const tData = running ? {
-        running: true,
-        endsAt: Date.now() + (seconds * 1000),
-        totalSeconds: totalSecs
-    } : {
-        running: false,
+    const tData = {
+        running: !!running,
+        seconds: seconds,
         remaining: seconds,
-        totalSeconds: totalSecs
+        endsAt: running ? (Date.now() + (seconds * 1000)) : null,
+        totalSeconds: totalSecs,
+        updatedAt: Date.now()
     };
     db.ref(`auctions/${activeEventCode}/timer`).set(tData).catch(err => console.error('FB timer write error:', err));
     if (activeEventCode === 'ESL2026') {
@@ -5445,6 +5444,8 @@ function toggleTimer() {
             fbBroadcastTimer(false, 0);
             // Auto-sell to highest bidder
             autoSellOnTimeout();
+        } else {
+            fbBroadcastTimer(true, timerSeconds);
         }
     }, 1000);
 }

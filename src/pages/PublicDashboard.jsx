@@ -49,17 +49,22 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
       return;
     }
 
-    if (timerData.running && timerData.endsAt) {
-      const calc = () => Math.max(0, Math.ceil((timerData.endsAt - Date.now()) / 1000));
-      setSecondsLeft(calc());
+    if (timerData.running) {
+      const getSeconds = () => {
+        if (timerData.seconds !== undefined) return timerData.seconds;
+        if (timerData.remaining !== undefined) return timerData.remaining;
+        if (timerData.endsAt) return Math.max(0, Math.ceil((timerData.endsAt - Date.now()) / 1000));
+        return 30;
+      };
+      setSecondsLeft(getSeconds());
       const interval = setInterval(() => {
-        setSecondsLeft(calc());
+        setSecondsLeft(getSeconds());
       }, 250);
       return () => clearInterval(interval);
     } else {
-      const rem = timerData.remaining !== undefined 
-        ? timerData.remaining 
-        : (timerData.timeLeft !== undefined ? timerData.timeLeft : (timerData.totalSeconds || 30));
+      const rem = timerData.seconds !== undefined ? timerData.seconds 
+        : (timerData.remaining !== undefined ? timerData.remaining 
+        : (timerData.timeLeft !== undefined ? timerData.timeLeft : (timerData.totalSeconds || 30)));
       setSecondsLeft(rem !== undefined ? rem : 30);
     }
   }, [timerData]);
