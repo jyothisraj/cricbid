@@ -558,10 +558,43 @@
             font-size: 4rem;
             font-weight: 800;
             color: var(--slate-900);
-            margin: 10px 0;
+            margin: 10px 0 4px 0;
             line-height: 1;
         }
         .timer-display.urgent { color: var(--red); }
+
+        .timer-extend-bar {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+            margin: 4px 0 14px 0;
+        }
+        .timer-extend-btn {
+            background: var(--primary-subtle);
+            border: 1px solid var(--primary-border);
+            color: var(--primary);
+            padding: 5px 14px;
+            border-radius: 6px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .timer-extend-btn:hover {
+            background: var(--primary);
+            color: #FFFFFF;
+            border-color: var(--primary);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+        }
+        .timer-extend-btn:active {
+            transform: translateY(0);
+        }
 
         /* Col 3: Teams status */
         .auction-col-teams {
@@ -5656,6 +5689,11 @@ function showPlayerOnStage(player) {
                 Base Value: <strong style="color:var(--bright-gold);">${formatNum(playerBaseValue)}</strong>
             </div>
             <div class="timer-display" id="timerDisplay">${timerMax}</div>
+            <div class="timer-extend-bar">
+                <span style="font-size:0.75rem;font-weight:600;color:var(--slate-500);margin-right:2px;">Extend:</span>
+                <button class="timer-extend-btn" onclick="extendTimer(10)">+10s</button>
+                <button class="timer-extend-btn" onclick="extendTimer(20)">+20s</button>
+            </div>
             <div class="bid-info" id="bidInfo"><span style="color:var(--text-secondary);">Waiting for PICK...</span></div>
             <div class="bid-history-bar">
                 <button class="undo-bid-btn" id="undoBidBtn" onclick="undoLastBid()" disabled>&#8630; Undo Bid</button>
@@ -5712,6 +5750,22 @@ function toggleTimer() {
             autoSellOnTimeout();
         }
     }, 1000);
+}
+
+function extendTimer(addSecs) {
+    if (timerSeconds <= 0) {
+        timerSeconds = addSecs;
+    } else {
+        timerSeconds += addSecs;
+    }
+    const display = document.getElementById('timerDisplay');
+    if (display) {
+        display.textContent = timerSeconds;
+        if (timerSeconds > 5) {
+            display.classList.remove('urgent');
+        }
+    }
+    fbBroadcastTimer(timerInterval !== null, timerSeconds);
 }
 
 // Auto-sell when timer expires
