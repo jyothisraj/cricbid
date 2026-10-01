@@ -261,7 +261,7 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
             🏆 Franchise Leaderboard
           </h3>
 
-          <div style={{ maxHeight: '460px', overflowY: 'auto' }}>
+          <div>
             <table className="custom-table">
               <thead>
                 <tr>
@@ -468,7 +468,7 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
                       No players acquired yet.
                     </div>
                   ) : (
-                    <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                    <div>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <tbody>
                           {squadItems.map((item, idx) => (
