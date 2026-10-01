@@ -719,6 +719,7 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
             }
 
             return displayTeams.map(t => {
+              const isMe = (t.teamName || '').toLowerCase() === (currentTeamInfo.teamName || '').toLowerCase();
               const teamBought = (auctionLog.sold || []).filter(s => (s.team || '').toLowerCase() === (t.teamName || '').toLowerCase());
               const teamSpent = teamBought.reduce((sum, s) => sum + (parseFloat(s.price || s.soldPrice) || 0), 0);
 
