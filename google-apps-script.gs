@@ -45,7 +45,7 @@ function initSheets() {
     es.appendRow([
       'Event Name', 'Event Code', 'Start Date', 'End Date', 
       'Venue', 'Registration Fee', 'Event Contacts', 'Banner URL', 
-      'Status', 'Created At'
+      'Status', 'Created At', 'Auction Mode', 'Host Club', 'Player Categories'
     ]);
     es.getRange('1:1').setFontWeight('bold');
     
@@ -195,13 +195,13 @@ function doPost(e) {
 
       // Team operations
       case 'addTeam':
-        result = addTeam(data);
+        result = saveTeamRoster(data, false);
         break;
       case 'deleteTeam':
         result = deleteTeam(data.teamName, data.eventCode);
         break;
       case 'updateTeam':
-        result = updateTeam(data);
+        result = saveTeamRoster(data, true);
         break;
 
       // Player operations
@@ -269,6 +269,9 @@ function getEvents() {
   const data = sheet.getDataRange().getValues();
   if (data.length <= 1) return { events: [] };
 
+  const modeColumn = data[0].indexOf('Auction Mode');
+  const hostColumn = data[0].indexOf('Host Club');
+  const categoriesColumn = data[0].indexOf('Player Categories');
   const events = [];
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
@@ -283,6 +286,10 @@ function getEvents() {
       eventContacts: String(row[6] || '').trim(),
       bannerUrl: String(row[7] || '').trim(),
       status: String(row[8] || 'Active').trim(),
+      hostClub: String(row[hostColumn] || '').trim(),
+      ...readOpenRoundOrder(row[data[0].indexOf('Open Round Order')]),
+      playerCategories: readPlayerCategories(row[categoriesColumn]),
+      auctionMode: row[modeColumn] === 'offline' ? 'offline' : 'online',
       createdAt: row[9] || ''
     });
   }
@@ -294,6 +301,32 @@ function formatDate(val) {
     return Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
   }
   return String(val);
+}
+
+function readOpenRoundOrder(raw) {
+  if (!raw) return {};
+  try { return { openRoundOrder: JSON.parse(raw) }; }
+  catch { return {}; }
+}
+
+function readPlayerCategories(raw) {
+  if (!raw) return [];
+  try {
+    const rules = JSON.parse(raw);
+    return Array.isArray(rules) ? rules : [];
+  } catch (error) {
+    console.warn('Invalid Player Categories cell: ' + error.message);
+    return [];
+  }
+}
+
+function eventColumn(sheet, header) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const index = headers.indexOf(header);
+  if (index >= 0) return index + 1;
+  const column = headers.length + 1;
+  sheet.getRange(1, column).setValue(header);
+  return column;
 }
 
 function addEvent(data) {
@@ -308,7 +341,8 @@ function addEvent(data) {
     if (ev.eventCode === code) return { error: 'Event code "' + code + '" already exists' };
   }
 
-  sheet.appendRow([
+  const modeColumn = eventColumn(sheet, 'Auction Mode');
+  const row = [
     data.eventName || '',
     code,
     data.startDate || '',
@@ -319,7 +353,13 @@ function addEvent(data) {
     data.bannerUrl || '',
     data.status || 'Active',
     new Date().toISOString()
-  ]);
+  ];
+  while (row.length < modeColumn) row.push('');
+  row[modeColumn - 1] = data.auctionMode === 'offline' ? 'offline' : 'online';
+  row[eventColumn(sheet, 'Host Club') - 1] = String(data.hostClub || '').trim();
+  row[eventColumn(sheet, 'Open Round Order') - 1] = JSON.stringify(data.openRoundOrder || {});
+  row[eventColumn(sheet, 'Player Categories') - 1] = JSON.stringify(data.playerCategories || []);
+  sheet.appendRow(Array.from(row, value => value ?? ''));
 
   return { success: true, eventCode: code };
 }
@@ -341,6 +381,14 @@ function updateEvent(data) {
       if (data.eventContacts !== undefined) sheet.getRange(rowIdx, 7).setValue(data.eventContacts);
       if (data.bannerUrl !== undefined) sheet.getRange(rowIdx, 8).setValue(data.bannerUrl);
       if (data.status !== undefined) sheet.getRange(rowIdx, 9).setValue(data.status);
+      if (data.hostClub !== undefined) sheet.getRange(rowIdx, eventColumn(sheet, 'Host Club')).setValue(String(data.hostClub).trim());
+      if (data.openRoundOrder !== undefined) sheet.getRange(rowIdx, eventColumn(sheet, 'Open Round Order')).setValue(JSON.stringify(data.openRoundOrder));
+      if (data.playerCategories !== undefined) {
+        sheet.getRange(rowIdx, eventColumn(sheet, 'Player Categories')).setValue(JSON.stringify(data.playerCategories));
+      }
+      if (data.auctionMode !== undefined) {
+        sheet.getRange(rowIdx, eventColumn(sheet, 'Auction Mode')).setValue(data.auctionMode === 'offline' ? 'offline' : 'online');
+      }
       return { success: true };
     }
   }
@@ -415,6 +463,8 @@ function getTeams(eventCode) {
       logoUrl: row[cLogo] || '',
       ownerName: row[cOwner] || '',
       iconPlayer: row[cIcon] || '',
+      iconPlayers: String(row[colMap.iconplayers] || row[cIcon] || '').split(',').map(n => n.trim()).filter(Boolean),
+      initialPurse: row[colMap.initialpurse] ?? '',
       retainedPlayer: cRetained !== -1 ? (row[cRetained] || '') : '',
       username: row[cUser] || '',
       password: row[cPass] || '',
@@ -423,6 +473,54 @@ function getTeams(eventCode) {
     });
   }
   return { teams };
+}
+
+function saveTeamRoster(data, editing) {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return { rejected: true, error: 'Another team is being saved. Please try again.' };
+  try {
+    const eventCode = String(data.newEventCode || data.eventCode || 'ESL2026').trim().toUpperCase();
+    const originalCode = String(data.originalEventCode || data.eventCode || 'ESL2026').trim().toUpperCase();
+    const originalName = String(data.originalName || data.teamName || '').trim().toLowerCase();
+    const names = team => [
+      ...String(team.ownerName || '').split(','),
+      ...(Array.isArray(team.iconPlayers) ? team.iconPlayers : String(team.iconPlayer || '').split(',')),
+      ...String(team.retainedPlayer || '').split(',')
+    ].map(n => n.trim().toLowerCase()).filter(Boolean);
+    const requested = new Set(names(data));
+    for (const team of getTeams().teams) {
+      if (team.eventCode !== eventCode && team.eventCode !== 'ALL' && eventCode !== 'ALL') continue;
+      if (editing && team.eventCode === originalCode && team.teamName.toLowerCase() === originalName) continue;
+      const conflict = names(team).find(name => requested.has(name));
+      if (conflict) return { rejected: true, error: conflict + ' is already assigned to ' + team.teamName + '.' };
+    }
+    if (data.initialPurse != null && data.initialPurse !== '' &&
+        (!Number.isSafeInteger(Number(data.initialPurse)) || Number(data.initialPurse) < 0)) {
+      return { rejected: true, error: 'Enter an initial purse in whole rupees, zero or higher.' };
+    }
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TEAMS_SHEET);
+    ensureTeamRosterColumns(sheet);
+    const result = editing ? updateTeam(data) : addTeam(data);
+    SpreadsheetApp.flush();
+    return result.error ? { ...result, rejected: true } : result;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function ensureTeamRosterColumns(sheet) {
+  // Append optional team fields after existing columns so legacy sheets keep their layout.
+  const teamHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map(h => String(h).toLowerCase().replace(/[\s_-]/g, ''));
+  for (const [label, keys] of [
+    ['Initial Purse', ['initialpurse']],
+    ['Icon Players', ['iconplayers']],
+    ['Retained Players', ['retainedplayer', 'retainedplayers', 'retained']]
+  ]) {
+    if (!keys.some(key => teamHeaders.includes(key))) {
+      sheet.getRange(1, sheet.getLastColumn() + 1).setValue(label);
+    }
+  }
 }
 
 function addTeam(data) {
@@ -470,6 +568,8 @@ function addTeam(data) {
     else if (k === 'ownername' || k === 'owner') newRow[c] = data.ownerName || '';
     else if (k === 'iconplayer' || k === 'icon') newRow[c] = data.iconPlayer || '';
     else if (k === 'retainedplayer' || k === 'retained' || k === 'retainedplayers') newRow[c] = data.retainedPlayer || '';
+    else if (k === 'initialpurse') newRow[c] = data.initialPurse ?? '';
+    else if (k === 'iconplayers') newRow[c] = (data.iconPlayers || []).join(', ');
     else if (k === 'username' || k === 'user') newRow[c] = data.username || '';
     else if (k === 'password' || k === 'pass') newRow[c] = data.password || '';
     else if (k === 'purseremaining' || k === 'purse' || k === 'budget') newRow[c] = (data.purseRemaining !== undefined && data.purseRemaining !== '') ? data.purseRemaining : budget;
@@ -514,7 +614,7 @@ function updateTeam(data) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(TEAMS_SHEET);
   const rows = sheet.getDataRange().getValues();
-  const filterCode = (data.eventCode || '').trim().toUpperCase();
+  const filterCode = (data.originalEventCode || data.eventCode || '').trim().toUpperCase();
 
   const rawHeaders = rows[0].map(h => String(h || '').trim());
   const colMap = {};
@@ -530,8 +630,8 @@ function updateTeam(data) {
     const tName = String(rows[i][teamColIdx] || '').trim().toLowerCase();
     const rowCode = evColIdx !== -1 ? (String(rows[i][evColIdx] || '').trim().toUpperCase() || 'ESL2026') : 'ESL2026';
 
-    if (tName === (data.teamName || '').toLowerCase().trim()) {
-      if (!filterCode || filterCode === 'ALL' || rowCode === filterCode) {
+    if (tName === (data.originalName || data.teamName || '').toLowerCase().trim()) {
+      if (!filterCode || rowCode === filterCode) {
         const rowIdx = i + 1;
         const setVal = (keys, val) => {
           if (val === undefined) return;
@@ -542,6 +642,9 @@ function updateTeam(data) {
             }
           }
         };
+        setVal(['teamname', 'team'], data.teamName);
+        setVal(['initialpurse'], data.initialPurse);
+        setVal(['iconplayers'], Array.isArray(data.iconPlayers) ? data.iconPlayers.join(', ') : (data.iconPlayer !== undefined ? data.iconPlayer : undefined));
         setVal(['logourl', 'logo'], data.logoUrl);
         setVal(['ownername', 'owner'], data.ownerName);
         setVal(['iconplayer', 'icon'], data.iconPlayer);
@@ -550,7 +653,7 @@ function updateTeam(data) {
         setVal(['password', 'pass'], data.password);
         setVal(['purseremaining', 'purse'], data.purseRemaining);
         setVal(['maxplayers', 'maxplayer'], data.maxPlayers);
-        if (data.newEventCode) setVal(['eventcode', 'event'], data.newEventCode);
+        setVal(['eventcode', 'event'], data.newEventCode || data.eventCode);
         return { success: true };
       }
     }
@@ -619,32 +722,37 @@ function updateAllTeamPurses(eventCode) {
   const settings = getSettings(eventCode).settings;
   const budget = parseFloat(settings.budget_per_team) || 1000000;
   const log = getAuctionLog(eventCode).log;
+  const minPlayerVal = Number(settings.min_player_value) || 10000;
+  const prices = new Map();
+  for (const player of getPlayers(eventCode).players) {
+    const fields = {};
+    for (const [header, value] of Object.entries(player)) {
+      fields[header.toLowerCase().replace(/[\s_-]/g, '')] = value;
+    }
+    const name = String(fields.name || fields.playername || fields.fullname || '').trim().toLowerCase();
+    if (name) prices.set(name, Number(String(fields.baseprice || fields.basevalue || '').replace(/,/g, '')) || minPlayerVal);
+  }
   const teamSheet = ss.getSheetByName(TEAMS_SHEET);
   const rows = teamSheet.getDataRange().getValues();
-  if (rows.length <= 1) return;
-
-  const rawHeaders = rows[0].map(h => String(h || '').trim());
-  let evColIdx = -1;
-  for (let c = 0; c < rawHeaders.length; c++) {
-    const k = rawHeaders[c].toLowerCase().replace(/[\s_-]/g, '');
-    if (k === 'eventcode' || k === 'event') {
-      evColIdx = c;
-      break;
-    }
-  }
-
-  const offset = (evColIdx === 0) ? 1 : 0;
+  const headers = rows[0].map(h => String(h || '').toLowerCase().replace(/[\s_-]/g, ''));
+  const teamCol = headers.findIndex(k => ['teamname', 'team'].includes(k));
+  const purseCol = headers.findIndex(k => ['purseremaining', 'purse', 'budget'].includes(k));
+  const eventCol = headers.findIndex(k => ['eventcode', 'event'].includes(k));
+  const retainedCol = headers.findIndex(k => ['retainedplayer', 'retainedplayers', 'retained'].includes(k));
+  const initialCol = headers.indexOf('initialpurse');
   const filterCode = (eventCode || '').trim().toUpperCase();
-
+  if (teamCol < 0 || purseCol < 0) return;
   for (let i = 1; i < rows.length; i++) {
-    const tName = rows[i][offset];
-    const rowCode = evColIdx !== -1 ? String(rows[i][evColIdx] || '').trim().toUpperCase() : '';
-    if (filterCode && rowCode && rowCode !== filterCode) continue;
-
-    const spent = log
-      .filter(l => l.team === tName && l.status === 'Sold')
-      .reduce((sum, l) => sum + (parseFloat(l.price) || 0), 0);
-    teamSheet.getRange(i + 1, offset + 7).setValue(budget - spent);
+    const row = rows[i];
+    const code = String(row[eventCol] || 'ESL2026').trim().toUpperCase();
+    if (filterCode && filterCode !== code) continue;
+    const spent = log.filter(l => l.eventCode === code && l.team === row[teamCol] && l.status === 'Sold')
+      .reduce((sum, l) => sum + Number(l.price || 0), 0);
+    const retained = String(row[retainedCol] || '').split(',').map(n => n.trim().toLowerCase()).filter(Boolean);
+    const deduction = retained.reduce((sum, name) => sum + (prices.get(name) || minPlayerVal), 0);
+    const initial = row[initialCol];
+    const starting = initial === '' || initial == null ? budget : Number(initial);
+    teamSheet.getRange(i + 1, purseCol + 1).setValue(Math.max(0, starting - deduction - spent));
   }
 }
 
@@ -677,6 +785,8 @@ function getAuctionLog(eventCode) {
       status: row[offset + 1] || '',
       team: row[offset + 2] || '',
       price: parseFloat(row[offset + 3]) || 0,
+      roundId: row[data[0].indexOf('Round ID')] || '',
+      roundPass: Number(row[data[0].indexOf('Round Pass')]) || 1,
       timestamp: row[offset + 4] || ''
     });
   }
@@ -755,24 +865,13 @@ function unsoldPlayer(data) {
   removePlayerFromLog(data.playerName, eventCode);
 
   const hasEventCodeCol = String(logSheet.getRange('A1').getValue() || '').trim().toLowerCase() === 'event code';
-  if (hasEventCodeCol) {
-    logSheet.appendRow([
-      eventCode,
-      data.playerName,
-      'Unsold',
-      '',
-      0,
-      new Date().toISOString()
-    ]);
-  } else {
-    logSheet.appendRow([
-      data.playerName,
-      'Unsold',
-      '',
-      0,
-      new Date().toISOString()
-    ]);
+  const row = [data.playerName, 'Unsold', '', 0, new Date().toISOString()];
+  if (hasEventCodeCol) row.unshift(eventCode);
+  if (data.roundId) {
+    row[eventColumn(logSheet, 'Round ID') - 1] = data.roundId;
+    row[eventColumn(logSheet, 'Round Pass') - 1] = Number(data.roundPass) || 1;
   }
+  logSheet.appendRow(Array.from(row, value => value ?? ''));
 
   updateSettings({
     current_player_index: '',
@@ -924,9 +1023,24 @@ function getPlayers(eventCode) {
   return { players, headers };
 }
 
+function ensurePlayerProfileColumns(sheet, data) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map(h => String(h).toLowerCase().replace(/[\s_-]/g, ''));
+  for (const [label, aliases] of [
+    ['Base Price', ['baseprice', 'basevalue']],
+    ['Age', ['age']],
+    ['Cricketing Profile', ['cricketingprofile', 'cricketprofile', 'playingrole', 'playerrole', 'role']]
+  ]) {
+    if ((data[label] || (label === 'Base Price' && Number(data.basePrice) > 0)) && !aliases.some(key => headers.includes(key))) {
+      sheet.getRange(1, sheet.getLastColumn() + 1).setValue(label);
+    }
+  }
+}
+
 function addPlayer(data) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Attendee List') || ss.getSheetByName('AttendeeList') || ss.getSheetByName('Players') || ss.getSheets()[0];
+  ensurePlayerProfileColumns(sheet, data);
   const lastCol = Math.max(1, sheet.getLastColumn());
   const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(h => String(h || '').trim());
   
@@ -947,17 +1061,19 @@ function addPlayer(data) {
 
   setVal(['eventcode', 'event'], (data.eventCode || 'ESL2026').trim().toUpperCase());
   setVal(['name', 'playername', 'player'], data.name || data.playerName || '');
-  setVal(['club', 'category'], data.club || data.category || 'General');
+  setVal(['club', 'clubname', 'cricketclub', 'category'], data.club ?? data.category ?? '');
+  setVal(['age'], data.Age);
+  setVal(['cricketingprofile', 'cricketprofile', 'playingrole', 'playerrole', 'role'], data['Cricketing Profile']);
   setVal(['mobilenumber', 'mobile', 'phone'], data.mobileNumber || data.mobile || '');
   setVal(['ticketname', 'ticket'], data.ticketName || 'PLAYER REGISTRATION');
   setVal(['ticketprice', 'price'], data.ticketPrice || data.price || '');
-  setVal(['baseprice', 'base_price', 'basevalue'], data.basePrice || data.baseValue || data.ticketPrice || '');
+  setVal(['baseprice', 'base_price', 'basevalue'], data.basePrice ?? data.baseValue ?? '');
   setVal(['status'], data.status || '');
   setVal(['bookingid', 'id'], data.bookingId || String(Date.now()).slice(-6));
   setVal(['battingprofile', 'battingstyle'], data.battingProfile || data.battingStyle || '');
   setVal(['battingposition', 'position'], data.battingPosition || '');
   setVal(['bowlingprofile', 'bowlingstyle'], data.bowlingProfile || data.bowlingStyle || '');
-  setVal(['areyouawicketkeeper', 'wicketkeeper', 'wk'], data.wicketKeeper || data.isWicketKeeper || 'No');
+  setVal(['areyouawicketkeeper?', 'areyouawicketkeeper', 'wicketkeeper', 'wk'], data.wicketKeeper || data.isWicketKeeper || 'No');
   setVal(['photo', 'image', 'photourl'], data.photo || data.photoUrl || '');
   setVal(['matches'], data.matches || '');
   setVal(['runs'], data.runs || '');
@@ -978,6 +1094,7 @@ function addPlayer(data) {
 function updatePlayer(data) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Attendee List') || ss.getSheetByName('AttendeeList') || ss.getSheetByName('Players') || ss.getSheets()[0];
+  ensurePlayerProfileColumns(sheet, data);
   const allRows = sheet.getDataRange().getValues();
   if (allRows.length <= 1) return { error: 'No player data found' };
 
@@ -1018,16 +1135,18 @@ function updatePlayer(data) {
 
   if (data.name || data.playerName) setCell(['name', 'playername', 'player'], data.name || data.playerName);
   if (data.eventCode) setCell(['eventcode', 'event'], data.eventCode.trim().toUpperCase());
-  if (data.club || data.category) setCell(['club', 'category'], data.club || data.category);
+  setCell(['club', 'clubname', 'cricketclub', 'category'], data.club ?? data.category);
+  setCell(['age'], data.Age);
+  setCell(['cricketingprofile', 'cricketprofile', 'playingrole', 'playerrole', 'role'], data['Cricketing Profile']);
   if (data.mobileNumber || data.mobile) setCell(['mobilenumber', 'mobile', 'phone'], data.mobileNumber || data.mobile);
   if (data.ticketName) setCell(['ticketname', 'ticket'], data.ticketName);
   if (data.ticketPrice || data.price) setCell(['ticketprice', 'price'], data.ticketPrice || data.price);
-  if (data.basePrice || data.baseValue || data.ticketPrice) setCell(['baseprice', 'base_price', 'basevalue'], data.basePrice || data.baseValue || data.ticketPrice);
+  if (data.basePrice !== undefined || data.baseValue !== undefined) setCell(['baseprice', 'base_price', 'basevalue'], data.basePrice ?? data.baseValue);
   if (data.status !== undefined) setCell(['status'], data.status);
   if (data.battingProfile || data.battingStyle) setCell(['battingprofile', 'battingstyle'], data.battingProfile || data.battingStyle);
   if (data.battingPosition) setCell(['battingposition', 'position'], data.battingPosition);
   if (data.bowlingProfile || data.bowlingStyle) setCell(['bowlingprofile', 'bowlingstyle'], data.bowlingProfile || data.bowlingStyle);
-  if (data.wicketKeeper || data.isWicketKeeper) setCell(['areyouawicketkeeper', 'wicketkeeper', 'wk'], data.wicketKeeper || data.isWicketKeeper);
+  if (data.wicketKeeper || data.isWicketKeeper) setCell(['areyouawicketkeeper?', 'areyouawicketkeeper', 'wicketkeeper', 'wk'], data.wicketKeeper || data.isWicketKeeper);
   if (data.photo || data.photoUrl) setCell(['photo', 'image', 'photourl'], data.photo || data.photoUrl);
   if (data.matches !== undefined) setCell(['matches'], data.matches);
   if (data.runs !== undefined) setCell(['runs'], data.runs);
@@ -1171,64 +1290,7 @@ function resetAuction(eventCode) {
     auction_status: 'stopped'
   }, eventCode);
 
-  // Reset team purses for this event (deducting retained player base values)
-  const settings = getSettings(eventCode).settings;
-  const budget = parseFloat(settings.budget_per_team) || 1000000;
-  const minPlayerVal = parseFloat(settings.min_player_value) || 10000;
-
-  // Build player base value lookup
-  const playerSheet = ss.getSheetByName(PLAYERS_SHEET);
-  const playerPrices = {};
-  if (playerSheet) {
-    const pRows = playerSheet.getDataRange().getValues();
-    if (pRows.length > 1) {
-      const pH = pRows[0].map(h => String(h || '').toLowerCase().replace(/[\s_-]/g, ''));
-      const pNameIdx = pH.indexOf('name');
-      let pPriceIdx = pH.indexOf('ticketprice');
-      if (pPriceIdx === -1) pPriceIdx = pH.indexOf('baseprice');
-      if (pPriceIdx === -1) pPriceIdx = pH.indexOf('price');
-      for (let pi = 1; pi < pRows.length; pi++) {
-        const pName = String(pRows[pi][pNameIdx] || '').trim().toLowerCase();
-        const pVal = pPriceIdx !== -1 ? (parseFloat(pRows[pi][pPriceIdx]) || 0) : 0;
-        if (pName) playerPrices[pName] = pVal > 0 ? pVal : minPlayerVal;
-      }
-    }
-  }
-
-  const teamSheet = ss.getSheetByName(TEAMS_SHEET);
-  if (teamSheet) {
-    const rows = teamSheet.getDataRange().getValues();
-    if (rows.length > 1) {
-      const rawHeaders = rows[0].map(h => String(h || '').trim());
-      let evColIdx = -1;
-      let purseColIdx = 6;
-      let retainedColIdx = -1;
-      for (let c = 0; c < rawHeaders.length; c++) {
-        const k = rawHeaders[c].toLowerCase().replace(/[\s_-]/g, '');
-        if (k === 'eventcode' || k === 'event') evColIdx = c;
-        if (k === 'purseremaining' || k === 'purse' || k === 'budget') purseColIdx = c;
-        if (k === 'retainedplayer' || k === 'retained' || k === 'retainedplayers') retainedColIdx = c;
-      }
-
-      for (let i = 1; i < rows.length; i++) {
-        const rowCode = evColIdx !== -1 ? (String(rows[i][evColIdx] || '').trim().toUpperCase() || 'ESL2026') : 'ESL2026';
-        if (!filterCode || rowCode === filterCode) {
-          let teamBudget = budget;
-          if (retainedColIdx !== -1) {
-            const retRaw = String(rows[i][retainedColIdx] || '').trim();
-            if (retRaw) {
-              const rNames = retRaw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-              rNames.forEach(rn => {
-                const pCost = playerPrices[rn] !== undefined ? playerPrices[rn] : minPlayerVal;
-                teamBudget = Math.max(0, teamBudget - pCost);
-              });
-            }
-          }
-          teamSheet.getRange(i + 1, purseColIdx + 1).setValue(teamBudget);
-        }
-      }
-    }
-  }
+  updateAllTeamPurses(eventCode);
 
   return { success: true };
 }

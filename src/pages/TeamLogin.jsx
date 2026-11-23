@@ -13,7 +13,7 @@ import {
 import ImageWithFallback from '../components/ImageWithFallback';
 import PlayerProfileCard from '../components/PlayerProfileCard';
 
-export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
+export default function TeamLogin({ eventCode = 'ESL2026', tournament, onNavigate }) {
   const currentEvent = (eventCode || 'ESL2026').toUpperCase();
 
   // Authentication State
@@ -139,79 +139,37 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
     setPassword('');
   };
 
-  const handleBidBasePrice = async () => {
-    if (!liveData || !liveData.currentPlayer) return;
-    const basePrice = Number(liveData.baseValue || liveData.currentPlayer.basePrice || liveData.currentPlayer.BasePrice || 10000);
-    if (basePrice > maxBidAmount) {
-      alert(`Base price (${formatNum(basePrice)}) exceeds your maximum allowable reserve of ${formatNum(maxBidAmount)}!`);
-      return;
-    }
-
+  const submitTeamBid = async (kind, increment = 0) => {
+    if (!liveData?.currentPlayer || liveData.auctionMode === 'offline') return;
+    const playerName = player => player?.name || player?.Name;
     const db = await getDb();
-    if (db) {
-      try {
-        await db.ref(`auctions/${currentEvent}/live`).update({
-          currentBid: basePrice,
-          currentBidder: currentTeamInfo.teamName,
-          lastBidTime: Date.now()
-        });
-      } catch (err) {
-        console.error('Bid base price error:', err);
-      }
+    if (!db) return;
+    try {
+      const result = await db.ref(`auctions/${currentEvent}/live`).transaction(live => {
+        if (!live?.currentPlayer || live.status !== 'bidding' || live.auctionMode === 'offline' ||
+            playerName(live.currentPlayer) !== playerName(liveData.currentPlayer)) return;
+        const opening = !live.currentBidder;
+        if (opening !== (kind === 'open') || live.currentBidder === currentTeamInfo.teamName) return;
+        const current = Number(live.currentBid);
+        let amount = Number(live.baseValue ?? window.PlayerPricing.resolve(mergedPlayer, tournament));
+        if (!opening) {
+          const minimum = window.BidLevels.minimum(current, live.bidLevels);
+          if (kind === 'raise' && increment !== minimum) return;
+          if (kind === 'custom' && !window.BidLevels.validCustom(increment, minimum, maxBidAmount)) return;
+          amount = kind === 'max' ? maxBidAmount : increment;
+        }
+        if (!Number.isFinite(amount) || amount > maxBidAmount || (!opening && amount <= current)) return;
+        return { ...live, currentBid: amount, currentBidder: currentTeamInfo.teamName, lastBidTime: Date.now() };
+      }, undefined, false);
+      if (!result.committed) alert('Bid declined. Check the latest bid and your available purse.');
+    } catch (err) {
+      console.error('Bid error:', err);
     }
   };
 
-  const handlePlaceBid = async (inc = 1000) => {
-    if (!liveData || !liveData.currentPlayer) return;
-    const basePrice = Number(liveData.baseValue || liveData.currentPlayer.basePrice || liveData.currentPlayer.BasePrice || 10000);
-    const currentBid = liveData.currentBidder
-      ? Number(liveData.currentBid || basePrice)
-      : basePrice;
-    const newBid = currentBid + inc;
-
-    if (newBid > maxBidAmount) {
-      alert(`Bid of ${formatNum(newBid)} exceeds your maximum allowable reserve of ${formatNum(maxBidAmount)}!`);
-      return;
-    }
-
-    const db = await getDb();
-    if (db) {
-      try {
-        await db.ref(`auctions/${currentEvent}/live`).update({
-          currentBid: newBid,
-          currentBidder: currentTeamInfo.teamName,
-          lastBidTime: Date.now()
-        });
-      } catch (err) {
-        console.error('Bid error:', err);
-      }
-    }
-  };
-
-  const handlePlaceMaxBid = async () => {
-    if (!liveData || !liveData.currentPlayer) return;
-    const basePrice = Number(liveData.baseValue || liveData.currentPlayer.basePrice || liveData.currentPlayer.BasePrice || 10000);
-    const currentBid = liveData.currentBidder
-      ? Number(liveData.currentBid || basePrice)
-      : basePrice;
-    if (maxBidAmount <= currentBid) {
-      alert(`Max allowable bid (${formatNum(maxBidAmount)}) is not higher than current bid (${formatNum(currentBid)})!`);
-      return;
-    }
-    const confirmed = window.confirm(`Confirm MAX BID of ${formatNum(maxBidAmount)} on ${liveData.currentPlayer.Name || liveData.currentPlayer.name}?`);
-    if (!confirmed) return;
-
-    const db = await getDb();
-    if (db) {
-      try {
-        await db.ref(`auctions/${currentEvent}/live`).update({
-          currentBid: maxBidAmount,
-          currentBidder: currentTeamInfo.teamName,
-          lastBidTime: Date.now()
-        });
-      } catch (err) {
-        console.error('Max bid error:', err);
-      }
+  const handlePlaceMaxBid = () => {
+    if (window.confirm(`Confirm MAX BID of ${formatNum(maxBidAmount)} on ${liveData.currentPlayer.Name || liveData.currentPlayer.name}?`)) {
+      submitTeamBid('max');
     }
   };
 
@@ -459,14 +417,15 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
           {cp ? (
             <div>
               {/* Complete Player Profile Card */}
-              <PlayerProfileCard player={mergedPlayer} liveData={liveData} />
+              <PlayerProfileCard tournament={tournament} player={mergedPlayer} liveData={liveData} />
 
               {/* Bidding Info & Controls */}
               {(() => {
-                const basePrice = Number(liveData.baseValue || liveData.currentPlayer?.basePrice || liveData.currentPlayer?.BasePrice || 10000);
+                const basePrice = window.PlayerPricing.resolve(mergedPlayer, tournament, liveData.baseValue);
                 const hasBidder = Boolean(liveData.currentBidder);
                 const currentBidAmount = hasBidder ? Number(liveData.currentBid || basePrice) : basePrice;
 
+                const minimum = window.BidLevels.minimum(currentBidAmount, liveData.bidLevels);
                 return (
                   <div>
                     {/* Bidding Status Card */}
@@ -518,7 +477,7 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
                             gap: '8px',
                             letterSpacing: '0.5px'
                           }}
-                          onClick={handleBidBasePrice}
+                          onClick={() => submitTeamBid('open')}
                           id="btnBidBasePriceMain"
                           disabled={basePrice > maxBidAmount}
                         >
@@ -530,42 +489,13 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
 
                     {/* Bid Controls: +1000, +2000, +5000, +10000, Max Amount */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '10px' }}>
-                      <button 
-                        className="btn btn-outline" 
-                        style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
-                        onClick={() => handlePlaceBid(1000)}
-                        id="btnPlaceBid1k"
-                        disabled={isMyBid || (currentBidAmount + 1000 > maxBidAmount)}
-                      >
-                        ⚡ +₹1,000
-                      </button>
-                      <button 
-                        className="btn btn-outline" 
-                        style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
-                        onClick={() => handlePlaceBid(2000)}
-                        id="btnPlaceBid2k"
-                        disabled={isMyBid || (currentBidAmount + 2000 > maxBidAmount)}
-                      >
-                        ⚡ +₹2,000
-                      </button>
-                      <button 
-                        className="btn btn-gold" 
-                        style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
-                        onClick={() => handlePlaceBid(5000)}
-                        id="btnPlaceBid5k"
-                        disabled={isMyBid || (currentBidAmount + 5000 > maxBidAmount)}
-                      >
-                        ⚡ +₹5,000
-                      </button>
-                      <button 
-                        className="btn btn-gold" 
-                        style={{ padding: '12px 6px', fontSize: '0.92rem', fontWeight: 700 }}
-                        onClick={() => handlePlaceBid(10000)}
-                        id="btnPlaceBid10k"
-                        disabled={isMyBid || (currentBidAmount + 10000 > maxBidAmount)}
-                      >
-                        ⚡ +₹10,000
-                      </button>
+                      <button className="btn btn-gold" disabled={!hasBidder || isMyBid || minimum > maxBidAmount}
+                        onClick={() => submitTeamBid('raise', minimum)}>Bid {formatNum(minimum)}</button>
+                      <button className="btn btn-outline" disabled={!hasBidder || isMyBid || Math.ceil(minimum / 1000) * 1000 > maxBidAmount}
+                        onClick={() => {
+                          const total = window.BidLevels.ask(minimum, maxBidAmount);
+                          if (total !== null) submitTeamBid('custom', total);
+                        }}>Custom bid</button>
                       <button 
                         className="btn btn-primary" 
                         style={{ 
@@ -577,7 +507,7 @@ export default function TeamLogin({ eventCode = 'ESL2026', onNavigate }) {
                         }}
                         onClick={handlePlaceMaxBid}
                         id="btnPlaceBidMax"
-                        disabled={isMyBid || maxBidAmount <= currentBidAmount}
+                        disabled={!hasBidder || isMyBid || maxBidAmount <= currentBidAmount}
                       >
                         🔥 Max ({formatNum(maxBidAmount)})
                       </button>

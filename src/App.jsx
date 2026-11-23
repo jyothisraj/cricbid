@@ -4,6 +4,31 @@ import TeamLogin from './pages/TeamLogin';
 import PublicDashboard from './pages/PublicDashboard';
 import PlayerExplorer from './pages/PlayerExplorer';
 import Admin from './pages/Admin';
+import { getDb } from './services/api';
+
+function AuctionScreen({ eventCode, teamView, playersView, onNavigate }) {
+  const [event, setEvent] = useState(null);
+  useEffect(() => {
+    let active = true;
+    let ref;
+    const useDefault = () => { if (active) setEvent({}); };
+    const update = snap => { if (active) setEvent(snap.val() || {}); };
+    getDb().then(db => {
+      if (!active) return;
+      if (!db) { setEvent({}); return; }
+      ref = db.ref(`events/${eventCode.toUpperCase()}`);
+      ref.on('value', update, useDefault);
+    }).catch(useDefault);
+    return () => {
+      active = false;
+      if (ref) ref.off('value', update);
+    };
+  }, [eventCode]);
+  if (playersView) return <PlayerExplorer eventCode={eventCode} tournament={event} onNavigate={onNavigate} />;
+  if (!event) return <p>Loading auction…</p>;
+  if (teamView && event.auctionMode !== 'offline') return <TeamLogin tournament={event} eventCode={eventCode} onNavigate={onNavigate} />;
+  return <PublicDashboard tournament={event} eventCode={eventCode} onNavigate={onNavigate} offline={event.auctionMode === 'offline'} />;
+}
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -45,11 +70,11 @@ class ErrorBoundary extends React.Component {
 }
 
 export default function App() {
-  const [currentPath, setCurrentPath] = useState(window.location.hash.replace(/^#/, '') || '/');
+  const [currentPath, setCurrentPath] = useState(window.location.hash.replace(/^#/, '') || window.location.pathname);
 
   useEffect(() => {
     const handleHashChange = () => {
-      const hash = window.location.hash.replace(/^#/, '') || '/';
+      const hash = window.location.hash.replace(/^#/, '') || window.location.pathname;
       setCurrentPath(hash);
     };
 
@@ -77,11 +102,11 @@ export default function App() {
 
   let pageContent = null;
   if (route === 'team-login' || route === 'team-view' || route === 'team_view') {
-    pageContent = <TeamLogin eventCode={paramEventCode} onNavigate={navigate} />;
+    pageContent = <AuctionScreen key={paramEventCode} teamView eventCode={paramEventCode} onNavigate={navigate} />;
   } else if (route === 'spectator' || route === 'public-dashboard' || route === 'dashboard') {
-    pageContent = <PublicDashboard eventCode={paramEventCode} onNavigate={navigate} />;
+    pageContent = <AuctionScreen key={paramEventCode} eventCode={paramEventCode} onNavigate={navigate} />;
   } else if (route === 'players') {
-    pageContent = <PlayerExplorer eventCode={paramEventCode} onNavigate={navigate} />;
+    pageContent = <AuctionScreen key={paramEventCode} playersView eventCode={paramEventCode} onNavigate={navigate} />;
   } else if (route === 'admin') {
     pageContent = <Admin eventCode={paramEventCode} onNavigate={navigate} />;
   } else {

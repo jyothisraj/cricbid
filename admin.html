@@ -1048,10 +1048,37 @@
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--slate-300); border-radius: 3px; }
+        #roundControls:not([hidden]) {
+            display: flex;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            gap: 12px 18px;
+            padding: 18px 20px;
+            margin-bottom: 12px;
+            background: var(--card, white);
+            border: 1px solid var(--border, #dce4ef);
+            border-inline-start: 4px solid #315ee8;
+            border-radius: 14px;
+            box-shadow: 0 4px 16px rgb(29 57 96 / 6%);
+        }
+        .round-field { flex: 1 1 220px; min-width: 0; }
+        .round-field label { display: block; font-size: .85rem; font-weight: 700; margin-bottom: 6px; }
+        #roundSelect { width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--border, #cdd8e5); border-radius: 8px; font: inherit; color: inherit; background: var(--card, white); }
+        #roundSelect:focus-visible { outline: 2px solid #315ee8; outline-offset: 2px; }
+        #roundPass:not(:empty) { align-self: center; border-radius: 16px; padding: 4px 10px; color: #2948a3; background: #edf2ff; font-size: .82rem; font-weight: 600; }
+        #roundPass:empty { display: none; }
+        #roundControls button { min-height: 42px; padding-inline: 18px; }
+        .round-start-message { grid-column: 1 / -1; margin: 0; padding: 6px 4px 12px; font-size: .9rem; }
+        @media (max-width: 560px) {
+            #roundControls .round-field, #roundControls button { flex-basis: 100%; }
+        }
     </style>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="/bid-levels.js"></script>
+    <script src="/player-pricing.js"></script>
+    <script src="/player-categories.js"></script>
 </head>
 <body>
 
@@ -1232,6 +1259,63 @@
                     <option value="Completed">Completed</option>
                 </select>
             </div>
+
+            <div class="form-group">
+                <label for="ef_auctionMode">Auction mode</label>
+                <select id="ef_auctionMode" onchange="updateModeFields()">
+                    <option value="online">Online - teams place bids</option>
+                    <option value="offline">Offline - auctioneer enters bids</option>
+                </select>
+            </div>
+            <section style="margin:20px 0;padding:18px 0;border-block:1px solid var(--border);">
+                <h3 style="margin:0 0 12px;">Player classification</h3>
+                <div class="form-group">
+                    <label for="ef_hostClub">Host club name (optional)</label>
+                    <input type="text" id="ef_hostClub" placeholder="e.g. Eminent Cricket Club" />
+                    <small>Matching clubs are Home. Other players are Away. Leave blank to display each player's club name.</small>
+                </div>
+                <h4>Bid increments</h4>
+                <div id="bidLevels"></div>
+                <button type="button" class="btn btn-outline btn-sm" onclick="addBidLevel()">Add bid level</button>
+                <h4 style="margin:16px 0 4px;">Player categories</h4>
+                <p style="font-size:.85rem;margin:0 0 12px;">A player receives the category when all its conditions match.</p>
+                <template id="categoryFieldNames"></template>
+                <div id="eventCategories"></div>
+                <div id="openRoundOrder"><h4>Open auction player order</h4><div class="order-fields"></div></div>
+                <template id="orderTemplate">
+                    <div class="form-group">
+                        <label class="form-group"><span class="order-label"></span><input type="text" autocomplete="off" placeholder="Search players" /></label>
+                        <div class="order-matches" style="max-height:10rem;overflow:auto;"></div>
+                        <table><tbody></tbody></table>
+                        <button type="button" class="btn btn-outline btn-sm" data-clear>Clear selection</button>
+                    </div>
+                </template>
+                <button type="button" class="btn btn-outline btn-sm" onclick="addCategoryEditor()">+ Add category</button>
+                <template id="categoryTemplate">
+                    <fieldset class="event-category" style="margin:0 0 12px;padding:12px;border:1px solid var(--border);border-radius:8px;">
+                        <div class="form-row" style="align-items:end;">
+                            <label class="form-group">Category name<input class="category-name" type="text" placeholder="e.g. Veterans" /></label>
+                            <button type="button" class="btn btn-sm" data-remove>Remove category</button>
+                        </div>
+                        <label><input type="checkbox" class="category-round" style="width:auto"> Use this category as an auction round</label>
+                        <div class="category-conditions"></div>
+                        <div class="order-fields"></div>
+                        <button type="button" class="btn btn-outline btn-sm" data-add>+ Add condition</button>
+                    </fieldset>
+                </template>
+                <template id="conditionTemplate">
+                    <div class="form-row category-condition" style="align-items:end;grid-template-columns:repeat(auto-fit,minmax(min(145px,100%),1fr));margin:10px 0;">
+                        <label class="form-group">Player field<select class="rule-field"><option value="">Select player field</option></select></label>
+                        <label class="form-group">Comparison<select class="rule-operator">
+                            <option value="equals">Equals</option><option value="contains">Contains</option>
+                            <option value="different">Does not equal</option><option value="min">At least</option>
+                            <option value="max">At most</option><option value="filled">Has a value</option>
+                        </select></label>
+                        <label class="form-group">Value<input class="rule-value" /><datalist></datalist></label>
+                        <button type="button" class="btn btn-sm" data-remove>Remove condition</button>
+                    </div>
+                </template>
+            </section>
 
             <!-- Tournament Auction Settings -->
             <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--border);">
@@ -1416,7 +1500,11 @@
                         </div>
                     </div>
                 </div>
-                <input type="hidden" id="tf_owner" value="" />
+                <div class="form-group">
+                    <label for="tf_initialPurse">Initial team purse (₹)</label>
+                    <input type="number" id="tf_initialPurse" min="0" step="1" oninput="updateRetainedPurseImpact()" aria-describedby="tf_purseHint" />
+                    <small id="tf_purseHint">Leave blank to use the tournament budget.</small>
+                </div>
             </div>
             <div class="form-row">
                 <div class="form-group">
@@ -1555,7 +1643,7 @@
                 </div>
                 <div class="form-group">
                     <label>Club / Category</label>
-                    <input type="text" id="pf_club" placeholder="e.g. Home, Away, or Club Name" />
+                    <input type="text" id="pf_club" placeholder="e.g. Eminent Cricket Club" />
                 </div>
             </div>
 
@@ -1627,6 +1715,10 @@
                 <h4 style="margin:0 0 12px 0;font-size:0.95rem;color:var(--slate-800);display:flex;align-items:center;gap:6px;">
                     <span>🏏</span> Cricket Attributes &amp; Role Profiles
                 </h4>
+                <div class="form-row">
+                    <div class="form-group"><label for="pf_age">Age in years</label><input type="number" id="pf_age" min="0" step="1" /></div>
+                    <div class="form-group"><label for="pf_cricketProfile">Cricketing profile</label><input type="text" id="pf_cricketProfile" placeholder="e.g. All rounder" /></div>
+                </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label>Batting Profile</label>
@@ -1741,6 +1833,12 @@
     <div class="auction-status-bar" id="auctionStatusBar"></div>
 
     <!-- 3-Column Live Auction Area -->
+    <div id="roundControls" hidden>
+        <div class="round-field"><label for="roundSelect">Auction round</label>
+        <select id="roundSelect" onchange="changeAuctionRound(this.value)"></select></div>
+        <span id="roundPass"></span>
+        <button type="button" class="btn btn-gold btn-sm" onclick="pickNextPlayer()">Pick next player</button>
+    </div>
     <div class="auction-3col" id="auctionArea">
         <div class="empty-state">
             <h3>Ready to Start</h3>
@@ -1953,6 +2051,7 @@ function initFirebase() {
 // Broadcast full auction state to Firebase for active event
 function fbBroadcastLive(data) {
     if (!db) return;
+    data.auctionMode = isOfflineAuction() ? 'offline' : 'online';
     db.ref(`auctions/${activeEventCode}/live`).set(data).catch(err => console.error('FB write error:', err));
     if (activeEventCode === 'ESL2026') {
         db.ref('eslAuction/live').set(data).catch(() => {});
@@ -1961,7 +2060,7 @@ function fbBroadcastLive(data) {
 
 // Broadcast timer state for active event
 function fbBroadcastTimer(running, seconds) {
-    if (!db) return;
+    if (!db || isOfflineAuction()) return;
     const totalSecs = parseInt(settings.timer_seconds) || 30;
     const tData = {
         running: !!running,
@@ -2026,11 +2125,29 @@ function updateAdminBidDisplay() {
         if (!bidInfo) return;
         const bid = parseFloat(data.currentBid) || 0;
         const bidder = data.currentBidder || '';
+        for (const button of document.querySelectorAll('#teamStatsPanel [data-bid-team]')) {
+            const team = teams[Number(button.dataset.bidTeam)];
+            if (!team) continue;
+            const leading = team.teamName === bidder;
+            const { toBuy, maxBid } = getTeamBidCapacity(team);
+            const minimum = BidLevels.minimum(bid, data.bidLevels);
+            if (button.hasAttribute('data-custom-bid')) {
+                button.dataset.minimum = minimum;
+                button.disabled = !bidder || leading || !toBuy || Math.ceil(minimum / 1000) * 1000 > maxBid;
+                continue;
+            }
+            if (button.hasAttribute('data-max-bid')) {
+                button.disabled = !bidder || leading || !toBuy || maxBid <= bid;
+                continue;
+            }
+            button.disabled = leading || !toBuy || maxBid < (bidder ? minimum : Number(data.baseValue));
+            button.textContent = leading ? 'Highest bidder' : 'Bid';
+        }
         if (bid > 0 && bidder) {
             bidInfo.innerHTML = `<strong style="color:var(--bright-gold);font-size:1.5rem;">${formatNum(bid)}</strong> by <span style="color:var(--text-gold);font-weight:600;">${esc(bidder)}</span>`;
         } else {
             const bv = parseFloat(data.baseValue) || MIN_PLAYER_VALUE;
-            bidInfo.innerHTML = `<span style="color:var(--text-secondary);">Base Value: <strong style="color:var(--bright-gold);">${formatNum(bv)}</strong> — Waiting for PICK...</span>`;
+            bidInfo.innerHTML = `<span style="color:var(--text-secondary);">Base Value: <strong style="color:var(--bright-gold);">${formatNum(bv)}</strong> — ${isOfflineAuction() ? "Select a team to bid" : "Waiting for PICK..."} </span>`;
         }
     });
 }
@@ -2076,19 +2193,8 @@ function getPlayerBaseValue(playerOrName, eventCode) {
         });
     }
 
-    let val = 0;
-    if (player) {
-        val = parseFloat(player['BasePrice'] || player['Base Price'] || player.basePrice || player.base_price || player['Ticket Price'] || player.price || 0) || 0;
-    }
-
-    // If no explicit ticket/base price or 0, fallback to tournament minPlayerValue
-    if (!val || val <= 0) {
-        const ev = allEvents.find(e => (e.eventCode || '').toUpperCase() === evCode);
-        val = (ev && ev.minPlayerValue !== undefined && ev.minPlayerValue !== null && ev.minPlayerValue !== '')
-            ? parseFloat(ev.minPlayerValue)
-            : (MIN_PLAYER_VALUE || 10000);
-    }
-    return val;
+    const event = allEvents.find(e => e.eventCode.toUpperCase() === evCode);
+    return PlayerPricing.resolve(player, event, MIN_PLAYER_VALUE);
 }
 
 function getTeamRetainedDeduction(t, eventCode) {
@@ -2101,16 +2207,20 @@ function getTeamRetainedDeduction(t, eventCode) {
     return totalDeduction;
 }
 
-function calculateTeamPurseRemaining(t, eventCode) {
+function teamStartingPurse(initialPurse, eventCode) {
+    const event = allEvents.find(e => e.eventCode.toUpperCase() === eventCode.toUpperCase());
+    return Number(initialPurse === '' || initialPurse == null ? (event?.budget ?? 1000000) : initialPurse);
+}
+
+function calculateTeamPurseRemaining(t, eventCode, log = auctionLog) {
     if (!t) return 0;
     const evCode = (eventCode || t.eventCode || activeEventCode || 'ESL2026').toUpperCase();
-    const ev = allEvents.find(e => (e.eventCode || '').toUpperCase() === evCode);
-    const budget = (ev && ev.budget !== undefined) ? parseFloat(ev.budget) : 1000000;
+    const budget = teamStartingPurse(t.initialPurse, evCode);
     const retainedDeduction = getTeamRetainedDeduction(t, evCode);
 
     // Sum all auction purchases for this team in this event
     const teamNameLower = (t.teamName || '').toLowerCase().trim();
-    const evLog = auctionLog.filter(l => ((l.eventCode || 'ESL2026').toUpperCase() === evCode || !l.eventCode));
+    const evLog = log.filter(l => ((l.eventCode || 'ESL2026').toUpperCase() === evCode || !l.eventCode));
     const spentInAuction = evLog
         .filter(l => (l.team || '').toLowerCase().trim() === teamNameLower && l.status === 'Sold')
         .reduce((sum, l) => sum + (parseFloat(l.price || l.soldPrice || l.amount) || 0), 0);
@@ -2142,6 +2252,7 @@ function fbBroadcastTeams() {
             retainedPlayers: retainedList,
             numRetainedPlayers: t.numRetainedPlayers !== undefined ? t.numRetainedPlayers : retainedList.length,
             retainedDeduction: retainedDed,
+            initialPurse: t.initialPurse ?? '',
             purseRemaining: currentPurse,
             maxPlayers: evMaxPlayers || parseInt(t.maxPlayers) || 11
         };
@@ -2328,6 +2439,7 @@ function resetBidHistory() {
 }
 
 function undoLastBid() {
+    if (waitingForOfflineBid()) return;
     if (!db || bidHistory.length === 0) return;
     bidHistory.pop();
     const liveRef = db.ref(`auctions/${activeEventCode}/live`);
@@ -2400,6 +2512,7 @@ async function loadEvents() {
                     } else {
                         const existingBanner = (allEvents[idx].bannerUrl || '').trim();
                         allEvents[idx] = Object.assign({}, allEvents[idx], fe);
+                        if (fe.hostClub !== undefined) allEvents[idx].playerCategories = fe.playerCategories || [];
                         // If Sheet already had a valid Drive or custom banner, and Firebase has empty/placeholder, preserve the valid banner:
                         if (existingBanner && existingBanner !== 'img/logo-red.png' && (!fe.bannerUrl || fe.bannerUrl === 'img/logo-red.png')) {
                             allEvents[idx].bannerUrl = existingBanner;
@@ -2490,6 +2603,7 @@ function renderActiveEventSelector() {
     const pubBtn = document.getElementById('btnLivePublicScreen');
     if (pubBtn) pubBtn.href = `public-dashboard.html?event=${encodeURIComponent(activeEventCode)}`;
     const portalBtn = document.getElementById('btnLiveTeamPortal');
+    if (portalBtn) portalBtn.style.display = isOfflineAuction() ? 'none' : 'inline-flex';
     if (portalBtn) portalBtn.href = `team-view.html?event=${encodeURIComponent(activeEventCode)}`;
 
     renderTeamEventSelectors();
@@ -2604,7 +2718,7 @@ function renderEvents() {
                     <div style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 10px 0;">
                         <span style="font-size:0.75rem;padding:3px 8px;border-radius:6px;background:var(--slate-100);color:var(--slate-700);font-weight:600;">💰 ₹${formatNum(ev.budget !== undefined ? ev.budget : 1000000)}</span>
                         <span style="font-size:0.75rem;padding:3px 8px;border-radius:6px;background:var(--slate-100);color:var(--slate-700);font-weight:600;">👥 ${ev.maxPlayers !== undefined ? ev.maxPlayers : 11} Players</span>
-                        <span style="font-size:0.75rem;padding:3px 8px;border-radius:6px;background:var(--slate-100);color:var(--slate-700);font-weight:600;">⏱️ ${ev.timer !== undefined ? ev.timer : 30}s</span>
+                        <span style="font-size:0.75rem;padding:3px 8px;border-radius:6px;background:var(--slate-100);color:var(--slate-700);font-weight:600;">${ev.auctionMode === 'offline' ? 'Offline' : `Online · ${ev.timer || 30}s`}</span>
                         <span style="font-size:0.75rem;padding:3px 8px;border-radius:6px;background:var(--slate-100);color:var(--slate-700);font-weight:600;">🏷️ ₹${formatNum(ev.minPlayerValue !== undefined ? ev.minPlayerValue : 10000)} Base</span>
                         <span style="font-size:0.75rem;padding:3px 8px;border-radius:6px;background:var(--slate-100);color:var(--slate-700);font-weight:600;">👑 ${ev.maxOwners !== undefined ? ev.maxOwners : 1} Owners</span>
                         <span style="font-size:0.75rem;padding:3px 8px;border-radius:6px;background:var(--slate-100);color:var(--slate-700);font-weight:600;">⭐ ${ev.maxIconPlayers !== undefined ? ev.maxIconPlayers : 1} Icons</span>
@@ -2616,7 +2730,7 @@ function renderEvents() {
                         ${bUrl ? `<button class="btn btn-sm" style="background:#F1F5F9;color:var(--slate-800);font-weight:600;" onclick="openImageViewer('${esc(bUrl)}', '${esc(ev.eventName || ev.eventCode)} — Tournament Banner', '${esc(driveView)}')">👁️ Banner</button>` : ''}
                         <button class="btn btn-sm" style="background:var(--slate-200);color:var(--slate-800);font-weight:600;" onclick="showEditEventView('${esc(ev.eventCode)}')">Edit</button>
                         <a href="public-dashboard.html?event=${encodeURIComponent(ev.eventCode)}" target="_blank" class="btn btn-sm" style="background:rgba(37,99,235,0.08);color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;font-weight:600;">Public Screen</a>
-                        <a href="team-view.html?event=${encodeURIComponent(ev.eventCode)}" target="_blank" class="btn btn-sm" style="background:rgba(37,99,235,0.08);color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;font-weight:600;">Team Portal</a>
+                        ${ev.auctionMode === 'offline' ? '' : `<a href="team-view.html?event=${encodeURIComponent(ev.eventCode)}" target="_blank" class="btn btn-sm" style="background:rgba(37,99,235,0.08);color:var(--primary);text-decoration:none;display:inline-flex;align-items:center;font-weight:600;">Team Portal</a>`}
                         <button class="btn btn-danger btn-sm" onclick="deleteEvent('${esc(ev.eventCode)}')">Delete</button>
                     </div>
                 </div>
@@ -2638,6 +2752,271 @@ function showEventsListView() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+function isOfflineAuction() {
+    return allEvents.find(event => event.eventCode === activeEventCode)?.auctionMode === 'offline';
+}
+
+function updateModeFields() {
+    const offline = document.getElementById('ef_auctionMode').value === 'offline';
+    for (const id of ['ef_timer', 'ef_timerIncrement']) {
+        document.getElementById(id).closest('.form-group').style.display = offline ? 'none' : '';
+    }
+}
+
+let categoryConditionId = 0;
+
+function addConditionEditor(container, condition = {}) {
+    const row = document.getElementById('conditionTemplate').content.firstElementChild.cloneNode(true);
+    const operator = row.querySelector('.rule-operator');
+    const value = row.querySelector('.rule-value');
+    const field = row.querySelector('.rule-field');
+    const suggestions = row.querySelector('datalist');
+    suggestions.id = 'category-values-' + (++categoryConditionId);
+    value.setAttribute('list', suggestions.id);
+    field.append(document.getElementById('categoryFieldNames').content.cloneNode(true));
+    if (condition.field && !Array.from(field.options).some(option => option.value === condition.field)) {
+        field.add(new Option(condition.field, condition.field));
+    }
+    field.value = condition.field || '';
+    const suggestValues = () => {
+        const values = new Set(allPlayers.map(player => PlayerCategories.fieldValue(player, field.value)).filter(Boolean));
+        suggestions.replaceChildren(...[...values].sort().map(text => new Option(text, text)));
+    };
+    field.onchange = suggestValues;
+    if (field.value) suggestValues();
+    operator.value = condition.operator || 'equals';
+    value.value = condition.value ?? '';
+    const updateValue = () => { value.disabled = operator.value === 'filled'; };
+    operator.onchange = updateValue;
+    updateValue();
+    row.querySelector('[data-remove]').onclick = () => row.remove();
+    container.append(row);
+}
+
+function roundOrderEditor(container, order = {}, eligible = () => true) {
+    const fields = document.createElement('div');
+    fields.className = 'form-row';
+    const hint = document.createElement('small');
+    hint.textContent = 'Players within each group appear in random order.';
+    container.replaceChildren(fields, hint);
+    const selected = { first: new Set(order.first || []), last: new Set(order.last || []) };
+    const renderers = [];
+    let names = [];
+    function render() {
+        renderers.forEach(draw => draw());
+    }
+    for (const group of ['first', 'last']) {
+        const panel = document.getElementById('orderTemplate').content.firstElementChild.cloneNode(true);
+        fields.append(panel);
+        const label = group === 'first' ? 'First players' : 'Last players';
+        panel.querySelector('.order-label').textContent = label;
+        const input = panel.querySelector('input');
+        const matches = panel.querySelector('.order-matches');
+        const rows = panel.querySelector('tbody');
+        rows.dataset.orderGroup = group;
+        panel.querySelector('table').setAttribute('aria-label', label);
+        const clear = panel.querySelector('[data-clear]');
+        function suggestions() {
+            const query = input.value.trim().toLowerCase();
+            matches.replaceChildren();
+            if (!query) return;
+            for (const name of names.filter(name => name.toLowerCase().includes(query) && !selected.first.has(name) && !selected.last.has(name))) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'btn btn-outline btn-sm';
+                button.textContent = name;
+                button.onclick = () => {
+                    selected[group].add(name);
+                    input.value = '';
+                    render();
+                    input.focus();
+                };
+                matches.append(button);
+            }
+            if (!matches.childElementCount) matches.textContent = 'No matching players';
+        }
+        input.onchange = event => event.stopPropagation();
+        input.oninput = suggestions;
+        panel.onkeydown = event => {
+            if (event.target !== input && !matches.contains(event.target)) return;
+            const options = Array.from(matches.children);
+            const index = options.indexOf(event.target);
+            if (event.key === 'Enter' && event.target === input) {
+                event.preventDefault();
+                options[0]?.click();
+            } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                (event.key === 'ArrowDown' ? options[Math.min(index + 1, options.length - 1)] : options[index - 1] || input)?.focus();
+            } else if (event.key === 'Escape') {
+                input.value = '';
+                suggestions();
+                input.focus();
+            }
+        };
+        clear.onclick = () => {
+            selected[group].clear();
+            render();
+            input.focus();
+        };
+        renderers.push(() => {
+            rows.replaceChildren();
+            for (const name of selected[group]) {
+                const row = rows.insertRow();
+                row.dataset.player = name;
+                row.insertCell().textContent = name;
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'btn btn-outline btn-sm';
+                remove.textContent = 'Remove';
+                remove.setAttribute('aria-label', 'Remove ' + name + ' from ' + label);
+                remove.onclick = () => {
+                    selected[group].delete(name);
+                    render();
+                    input.focus();
+                };
+                row.insertCell().append(remove);
+            }
+            clear.disabled = !selected[group].size;
+            suggestions();
+        });
+    }
+    function refresh() {
+        const code = (currentEditingEventCode || document.getElementById('ef_code').value || '').trim().toUpperCase();
+        const players = allPlayers.filter(player => [code, 'ALL'].includes(getPlayerEventCode(player)));
+        const known = new Set(players.map(getPlayerName));
+        const available = new Set(players.filter(eligible).map(getPlayerName).filter(Boolean));
+        names = [...available].sort((a,b) => a.localeCompare(b));
+        for (const group of Object.values(selected)) {
+            for (const name of group) if (known.has(name) && !available.has(name)) group.delete(name);
+        }
+        render();
+    }
+    refresh();
+    return refresh;
+}
+
+function readRoundOrder(container) {
+    const selected = group => Array.from(container.querySelectorAll('[data-order-group="' + group + '"] tr'), row => row.dataset.player);
+    return { first: selected('first'), last: selected('last') };
+}
+
+let refreshOpenRoundOrder;
+function editorRoundRule(card) {
+    const conditions = Array.from(card.querySelectorAll('.category-condition'), row => ({
+        field: row.querySelector('.rule-field').value, operator: row.querySelector('.rule-operator').value,
+        value: row.querySelector('.rule-value').value
+    }));
+    return { name: card.dataset.roundId, conditions };
+}
+
+function updateOpenRoundOrder() {
+    const cards = Array.from(document.querySelectorAll('#eventCategories .category-round:checked'), checkbox => checkbox.closest('.event-category'));
+    const rules = cards.map(editorRoundRule);
+    document.querySelector('#openRoundOrder h4').textContent = rules.length ? 'Non-category players: auction order' : 'Open auction player order';
+    refreshOpenRoundOrder?.(rules);
+}
+
+function addCategoryEditor(rule = {}) {
+    const card = document.getElementById('categoryTemplate').content.firstElementChild.cloneNode(true);
+    card.querySelector('.category-name').value = rule.name || '';
+    card.dataset.roundId = rule.roundId || crypto.randomUUID();
+    card.querySelector('.category-round').checked = Boolean(rule.roundId);
+    const container = card.querySelector('.category-conditions');
+    for (const condition of rule.conditions || [{}]) addConditionEditor(container, condition);
+    const orderFields = card.querySelector('.order-fields');
+    const refresh = roundOrderEditor(orderFields, rule.order, player => {
+        return PlayerCategories.classify(player, { playerCategories: [editorRoundRule(card)] }).categories.length > 0;
+    });
+    function update() {
+        orderFields.hidden = !card.querySelector('.category-round').checked;
+        if (!orderFields.hidden) refresh();
+        updateOpenRoundOrder();
+    }
+    card.addEventListener('change', update);
+    card.querySelector('[data-add]').onclick = () => { addConditionEditor(container); update(); };
+    container.addEventListener('click', e => { if (e.target.matches('[data-remove]')) update(); });
+    card.querySelector('[data-remove]').onclick = () => { card.remove(); updateOpenRoundOrder(); };
+    orderFields.hidden = !rule.roundId;
+    document.getElementById('eventCategories').append(card);
+}
+
+function addBidLevel(level = {}) {
+    const row = document.createElement('div');
+    row.className = 'form-row';
+    row.innerHTML = '<label class="form-group">Current bid from<input type="number" min="0"></label><label class="form-group">Increment<input type="number" min="1"></label><button type="button" class="btn btn-outline btn-sm">Remove</button>';
+    const [from, step] = row.querySelectorAll('input');
+    from.value = level.from ?? '';
+    step.value = level.step ?? '';
+    from.readOnly = level.from === 0;
+    const remove = row.querySelector('button');
+    remove.disabled = from.readOnly;
+    remove.onclick = () => row.remove();
+    document.getElementById('bidLevels').append(row);
+}
+function loadClassificationEditor(event = {}) {
+    document.getElementById('bidLevels').replaceChildren();
+    (event.bidLevels || BidLevels.defaults).forEach(addBidLevel);
+    document.getElementById('ef_hostClub').value = event.hostClub || '';
+    const fields = new Set([...playerHeaders, ...allPlayers.flatMap(player => Object.keys(player)),
+        'Age', 'Club', 'Cricketing Profile', 'Are you a wicket keeper?', 'Batting Profile', 'Batting position', 'Bowling Profile']);
+    const options = [...fields].sort().map(field => new Option(field, field));
+    document.getElementById('categoryFieldNames').content.replaceChildren(...options);
+    document.getElementById('eventCategories').replaceChildren();
+    const openFields = document.querySelector('#openRoundOrder .order-fields');
+    for (const rule of event.playerCategories || []) addCategoryEditor(rule);
+    let rules = Array.from(document.querySelectorAll('#eventCategories .category-round:checked'), checkbox => editorRoundRule(checkbox.closest('.event-category')));
+    const refresh = roundOrderEditor(openFields, event.openRoundOrder, player =>
+        !PlayerCategories.classify(player, { playerCategories: rules }).categories.length);
+    refreshOpenRoundOrder = updatedRules => { rules = updatedRules; refresh(); };
+    document.getElementById('ef_code').oninput = () => {
+        refresh();
+        document.querySelectorAll('#eventCategories .category-round').forEach(input => input.dispatchEvent(new Event('change', { bubbles: true })));
+    };
+    updateOpenRoundOrder();
+}
+
+function readClassificationEditor() {
+    const bidLevels = Array.from(document.querySelectorAll('#bidLevels .form-row'), row => {
+        const [from, step] = Array.from(row.querySelectorAll('input'), input => input.valueAsNumber);
+        return {from, step};
+    }).sort((a,b) => a.from - b.from);
+    if (bidLevels[0]?.from !== 0 || bidLevels.some(({from, step}, i) =>
+        !Number.isSafeInteger(from) || from < 0 || !Number.isSafeInteger(step) || step < 1 || bidLevels[i-1]?.from === from)) {
+        toast('Enter distinct whole-number thresholds starting at zero and a positive increment for each level.', 'error');
+        return null;
+    }
+    const playerCategories = [];
+    const names = new Set();
+    const invalid = (message, input) => {
+        toast(message, 'error');
+        input.focus();
+        return null;
+    };
+    for (const card of document.querySelectorAll('#eventCategories .event-category')) {
+        const input = card.querySelector('.category-name');
+        const name = input.value.trim();
+        if (!name || names.has(name.toLowerCase())) return invalid('Give each category a unique name.', input);
+        names.add(name.toLowerCase());
+        const conditions = [];
+        for (const row of card.querySelectorAll('.category-condition')) {
+            const fieldInput = row.querySelector('.rule-field');
+            const field = fieldInput.value.trim();
+            const operator = row.querySelector('.rule-operator').value;
+            const valueInput = row.querySelector('.rule-value');
+            const value = operator === 'filled' ? '' : valueInput.value.trim();
+            if (!field) return invalid('Choose a player field for ' + name + '.', fieldInput);
+            if (operator !== 'filled' && !value) return invalid('Enter a comparison value for ' + name + '.', valueInput);
+            if (['min', 'max'].includes(operator) && !Number.isFinite(Number(value))) {
+                return invalid('Enter a numeric threshold for ' + name + '.', valueInput);
+            }
+            conditions.push({ field, operator, value });
+        }
+        if (!conditions.length) return invalid('Add at least one condition for ' + name + '.', card.querySelector('[data-add]'));
+        playerCategories.push({ name, conditions, ...(card.querySelector('.category-round').checked ? { roundId: card.dataset.roundId, order: readRoundOrder(card.querySelector('.order-fields')) } : {}) });
+    }
+    return { bidLevels, hostClub: document.getElementById('ef_hostClub').value.trim(), playerCategories, openRoundOrder: readRoundOrder(document.querySelector('#openRoundOrder .order-fields')) };
+}
+
 function showCreateEventView() {
     const listView = document.getElementById('eventsListView');
     const formView = document.getElementById('eventFormView');
@@ -2652,8 +3031,11 @@ function showCreateEventView() {
 
     // Clear inputs and set defaults
     document.getElementById('ef_origCode').value = '';
+    document.getElementById('ef_auctionMode').value = 'online';
+    updateModeFields();
     document.getElementById('ef_name').value = '';
     document.getElementById('ef_code').value = '';
+    loadClassificationEditor();
     document.getElementById('ef_code').disabled = false;
     document.getElementById('ef_code').style.background = '#FFFFFF';
     document.getElementById('ef_start').value = '';
@@ -2704,7 +3086,10 @@ function showEditEventView(code) {
         statusBadge.innerHTML = `<span style="font-size:0.78rem;padding:4px 12px;border-radius:12px;background:${bg};color:${clr};font-weight:700;">● ${esc(ev.status || 'Live')}</span>`;
     }
 
+    loadClassificationEditor(ev);
     document.getElementById('ef_origCode').value = ev.eventCode;
+    document.getElementById('ef_auctionMode').value = ev.auctionMode || 'online';
+    updateModeFields();
     document.getElementById('ef_name').value = ev.eventName || '';
     document.getElementById('ef_code').value = ev.eventCode;
     document.getElementById('ef_code').disabled = true; // Event Code is unique ID
@@ -2785,7 +3170,10 @@ async function addEvent() {
     const bannerDriveId = bannerInput?.dataset?.driveFileId || getDriveFileId(bannerInput?.value.trim() || '');
     const bannerDriveView = bannerInput?.dataset?.driveViewUrl || (bannerDriveId ? `https://drive.google.com/file/d/${bannerDriveId}/view` : '');
 
+    const classification = readClassificationEditor();
+    if (!classification) return;
     const newEv = {
+        ...classification,
         eventName: rawName,
         eventCode: rawCode,
         startDate: document.getElementById('ef_start').value || '',
@@ -2796,6 +3184,7 @@ async function addEvent() {
         bannerUrl: bannerVal,
         driveFileId: bannerDriveId,
         driveViewUrl: bannerDriveView,
+        auctionMode: document.getElementById('ef_auctionMode').value,
         status: document.getElementById('ef_status').value || 'Live',
         budget: b,
         maxPlayers: mp,
@@ -2871,7 +3260,10 @@ async function saveEditEvent() {
     const bannerDriveId = bannerInput?.dataset?.driveFileId || existingEv?.driveFileId || getDriveFileId(bannerInput?.value.trim() || '') || getDriveFileId(existingEv?.bannerUrl || '');
     const bannerDriveView = bannerInput?.dataset?.driveViewUrl || existingEv?.driveViewUrl || (bannerDriveId ? `https://drive.google.com/file/d/${bannerDriveId}/view` : '');
 
+    const classification = readClassificationEditor();
+    if (!classification) return;
     const updated = {
+        ...classification,
         eventCode: code,
         eventName: document.getElementById('ef_name').value.trim(),
         startDate: document.getElementById('ef_start').value || '',
@@ -2882,6 +3274,7 @@ async function saveEditEvent() {
         bannerUrl: bannerVal,
         driveFileId: bannerDriveId,
         driveViewUrl: bannerDriveView,
+        auctionMode: document.getElementById('ef_auctionMode').value,
         status: document.getElementById('ef_status').value || 'Live',
         budget: b,
         maxPlayers: mp,
@@ -2895,7 +3288,17 @@ async function saveEditEvent() {
 
     const idx = allEvents.findIndex(e => e.eventCode === code);
     if (idx !== -1) {
+        const changedMode = (allEvents[idx].auctionMode || 'online') !== updated.auctionMode;
         allEvents[idx] = Object.assign(allEvents[idx], updated);
+        if (changedMode && code === activeEventCode) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            fbClearTimer();
+            if (currentPlayerObj) showPlayerOnStage(currentPlayerObj);
+            if (db && currentPlayerObj) {
+                await db.ref(`auctions/${code}/live/auctionMode`).set(updated.auctionMode);
+            }
+        }
     }
     try {
         localStorage.setItem('cricket_events', JSON.stringify(allEvents));
@@ -2930,6 +3333,14 @@ async function saveEditEvent() {
         applyActiveEventSettings();
     }
 
+    renderRoundControls();
+    renderPlayersTable();
+    const profile = document.getElementById('stagePlayerProfile');
+    if (code === activeEventCode && currentPlayerObj && profile) {
+        profile.innerHTML = buildAdminPlayerDetailHtml(currentPlayerObj);
+        document.getElementById('teamStatsPanel').innerHTML = buildTeamsStatusHtml();
+        updateAdminBidDisplay();
+    }
     showEventsListView();
     renderActiveEventSelector();
     renderEvents();
@@ -3021,6 +3432,8 @@ async function fetchSheetTeamsDirect() {
         const cLogo = getIdx(['logourl', 'logo'], 1);
         const cOwner = getIdx(['ownername', 'owner'], 2);
         const cIcon = getIdx(['iconplayer', 'icon'], 3);
+        const cIcons = getIdx(['iconplayers'], -1);
+        const cInitial = getIdx(['initialpurse'], -1);
         const cRetained = getIdx(['retainedplayer', 'retained', 'retainedplayers'], -1);
         const cUser = getIdx(['username', 'user'], 4);
         const cPass = getIdx(['password', 'pass'], 5);
@@ -3049,6 +3462,8 @@ async function fetchSheetTeamsDirect() {
                 owners: ownersList,
                 numOwners: ownersList.length,
                 iconPlayer: String(getVal(cIcon) || ''),
+                ...(getVal(cIcons) ? { iconPlayers: String(getVal(cIcons)).split(',').map(n => n.trim()).filter(Boolean) } : {}),
+                ...(cInitial >= 0 ? { initialPurse: getVal(cInitial) } : {}),
                 retainedPlayer: retainedRaw,
                 retainedPlayers: retainedList,
                 numRetainedPlayers: retainedList.length,
@@ -3093,7 +3508,11 @@ async function loadAll() {
                 if (!fe || !fe.eventCode) return;
                 const idx = allEvents.findIndex(e => e.eventCode === fe.eventCode);
                 if (idx === -1) allEvents.push(fe);
-                else allEvents[idx] = Object.assign({}, allEvents[idx], fe);
+                else allEvents[idx] = Object.assign({}, allEvents[idx], fe, {
+                    auctionMode: allEvents[idx].auctionMode || fe.auctionMode || 'online',
+                    ...(allEvents[idx].openRoundOrder ? {openRoundOrder: allEvents[idx].openRoundOrder} : {}),
+                    ...(allEvents[idx].hostClub !== undefined ? {hostClub: allEvents[idx].hostClub, playerCategories: allEvents[idx].playerCategories || []} : {})
+                });
             });
             renderActiveEventSelector();
             renderEvents();
@@ -3212,8 +3631,8 @@ async function loadAll() {
         skipLogOverwrite = false;
 
         // Reconcile and calculate exact team purses (taking retained players deduction and auction purchases into account)
-        allTeams.forEach(t => {
-            const evCode = t.eventCode || 'ESL2026';
+        getActiveEventTeams().forEach(t => {
+            const evCode = activeEventCode;
             t.purseRemaining = calculateTeamPurseRemaining(t, evCode);
         });
         try { localStorage.setItem('cricket_teams', JSON.stringify(allTeams)); } catch(e) {}
@@ -3230,7 +3649,14 @@ async function loadAll() {
 
         fbBroadcastAll();
 
-        if (settings.auction_status === 'bidding' && settings.current_player_name) {
+        if (isOfflineAuction() && db && !currentPlayerObj) {
+            const code = activeEventCode;
+            const live = (await db.ref(`auctions/${code}/live`).once('value')).val();
+            if (code === activeEventCode && !currentPlayerObj && live?.status === 'bidding' && live.currentPlayer) {
+                const player = getActiveEventPlayers().find(p => getPlayerName(p) === live.currentPlayer.name);
+                if (player) showPlayerOnStage(player);
+            }
+        } else if (!isOfflineAuction() && settings.auction_status === 'bidding' && settings.current_player_name) {
             const player = getActiveEventPlayers().find(p => getPlayerName(p) === settings.current_player_name);
             if (player) showPlayerOnStage(player);
         }
@@ -3891,6 +4317,7 @@ function showAddTeamView() {
     const formSel = document.getElementById('tf_eventCode');
     if (formSel) formSel.value = targetEvent;
 
+    document.getElementById('tf_initialPurse').value = '';
     updateTeamFormBadgeAndHint(targetEvent);
     populateTeamFormPlayers(targetEvent, [], [], []);
 
@@ -3935,6 +4362,7 @@ function showEditTeamView(teamName, evCode) {
     const formSel = document.getElementById('tf_eventCode');
     if (formSel) formSel.value = team.eventCode || targetEvent;
 
+    document.getElementById('tf_initialPurse').value = team.initialPurse ?? '';
     updateTeamFormBadgeAndHint(team.eventCode || targetEvent);
 
     const ownerArr = getTeamOwners(team);
@@ -3962,6 +4390,7 @@ function openEditTeam(name, code) { showEditTeamView(name, code); }
 function closeEditTeamModal() { showTeamsListView(); }
 
 function updateTeamFormBadgeAndHint(evCode) {
+    document.getElementById('tf_initialPurse').placeholder = String(teamStartingPurse('', evCode));
     const badge = document.getElementById('teamFormEventBadge');
     const hint = document.getElementById('teamFormEventSettingsHint');
     const ev = allEvents.find(e => e.eventCode === evCode);
@@ -4013,6 +4442,39 @@ function onEditTeamEventChange(code) {
     onTeamFormEventChange(code);
 }
 
+function otherTeamAssignments(eventCode) {
+    const originalName = document.getElementById('tf_origName').value;
+    const originalEvent = document.getElementById('tf_origEventCode').value.trim().toUpperCase();
+    const assignments = new Map();
+    for (const team of allTeams) {
+        const code = (team.eventCode || 'ESL2026').trim().toUpperCase();
+        if (code !== eventCode && code !== 'ALL' && eventCode !== 'ALL') continue;
+        if (team.teamName === originalName && code === originalEvent) continue;
+        const icons = team.iconPlayers?.length ? team.iconPlayers : [team.iconPlayer];
+        for (const name of [...getTeamOwners(team), ...icons, ...getTeamRetainedPlayers(team)]) {
+            if (name) assignments.set(name.trim().toLowerCase(), team.teamName);
+        }
+    }
+    return assignments;
+}
+
+function validateTeamForm(eventCode, players) {
+    const purse = document.getElementById('tf_initialPurse');
+    if (!purse.checkValidity() || (purse.value !== '' && !Number.isSafeInteger(purse.valueAsNumber))) {
+        toast('Enter an initial purse in whole rupees, zero or higher.', 'error');
+        return false;
+    }
+    const assignments = otherTeamAssignments(eventCode);
+    for (const name of players) {
+        const otherTeam = assignments.get(name.toLowerCase());
+        if (otherTeam) {
+            toast(name + ' is already assigned to ' + otherTeam + '.', 'error');
+            return false;
+        }
+    }
+    return true;
+}
+
 function populateTeamFormPlayers(evCode, selectedOwners = [], selectedIcons = [], selectedRetained = []) {
     let ownerArr = [];
     if (Array.isArray(selectedOwners)) {
@@ -4036,29 +4498,21 @@ function populateTeamFormPlayers(evCode, selectedOwners = [], selectedIcons = []
 
     const playerNames = filteredPlayers.map(p => getPlayerName(p)).filter(n => n && n !== 'Unknown');
 
-    const ownerHidden = document.getElementById('tf_owner');
-    if (ownerHidden) ownerHidden.value = ownerArr.join(', ');
-
-    renderDynamicPlayerSelectors(playerNames, ownerArr, selectedIcons, selectedRetained);
+    const assignments = otherTeamAssignments(evCode.trim().toUpperCase());
+    const available = playerNames.filter(name => !assignments.has(name.trim().toLowerCase()));
+    renderDynamicPlayerSelectors(evCode, available, ownerArr, selectedIcons, selectedRetained, assignments);
     updateRetainedPurseImpact();
 }
 
-function renderDynamicPlayerSelectors(playerNames, selectedOwners = [], selectedIcons = [], selectedRetained = []) {
-    const evCode = ((document.getElementById('tf_eventCode')?.value || activeEventCode) || '').trim().toUpperCase();
-    if (!playerNames) {
-        const filtered = allPlayers.filter(p => {
-            if (!evCode) return true;
-            for (const [h, v] of Object.entries(p)) {
-                const k = h.toLowerCase().replace(/[\s_-]/g, '');
-                if (k === 'eventcode' || k === 'event') {
-                    const val = (v || '').trim().toUpperCase();
-                    if (val === 'ALL' || val === evCode) return true;
-                    if (val) return false;
-                }
-            }
-            return true;
-        });
-        playerNames = filtered.map(p => getPlayerName(p)).filter(n => n && n !== 'Unknown');
+function renderDynamicPlayerSelectors(evCode, playerNames, selectedOwners, selectedIcons, selectedRetained, assignments) {
+    function playerOptions(selected, showPrice = false) {
+        const names = selected && !playerNames.includes(selected) ? [selected, ...playerNames] : playerNames;
+        return names.map(name => {
+            const otherTeam = assignments.get(name.trim().toLowerCase());
+            const price = showPrice ? ' (' + formatNum(getPlayerBaseValue(name, evCode)) + ')' : '';
+            const label = otherTeam ? name + ' (assigned to ' + otherTeam + ')' : name + price;
+            return `<option value="${esc(name)}" ${name === selected ? 'selected' : ''} ${otherTeam ? 'disabled' : ''}>${esc(label)}</option>`;
+        }).join('');
     }
 
     const evObj = allEvents.find(e => (e.eventCode || '').trim().toUpperCase() === evCode);
@@ -4081,7 +4535,7 @@ function renderDynamicPlayerSelectors(playerNames, selectedOwners = [], selected
             let h = '';
             for (let i = 1; i <= ownerCount; i++) {
                 const selVal = selectedOwners[i - 1] || '';
-                const opts = playerNames.map(n => `<option value="${esc(n)}" ${n === selVal ? 'selected' : ''}>${esc(n)}</option>`).join('');
+                const opts = playerOptions(selVal);
                 h += `
                     <div style="margin-bottom:8px;">
                         <select class="tf-owner-select" data-slot="${i}" style="width:100%;padding:8px 12px;background:#FFFFFF;border:1px solid var(--border);border-radius:8px;font-size:0.88rem;color:var(--slate-800);">
@@ -4102,7 +4556,7 @@ function renderDynamicPlayerSelectors(playerNames, selectedOwners = [], selected
             let h = '';
             for (let i = 1; i <= iconCount; i++) {
                 const selVal = selectedIcons[i - 1] || '';
-                const opts = playerNames.map(n => `<option value="${esc(n)}" ${n === selVal ? 'selected' : ''}>${esc(n)}</option>`).join('');
+                const opts = playerOptions(selVal);
                 h += `
                     <div style="margin-bottom:8px;">
                         <select class="tf-icon-select" data-slot="${i}" style="width:100%;padding:8px 12px;background:#FFFFFF;border:1px solid var(--border);border-radius:8px;font-size:0.88rem;color:var(--slate-800);">
@@ -4120,14 +4574,10 @@ function renderDynamicPlayerSelectors(playerNames, selectedOwners = [], selected
         if (retainedCount === 0) {
             retCont.innerHTML = '<p style="color:var(--slate-400);font-size:0.82rem;margin:6px 0;">No retained players configured for this team.</p>';
         } else {
-            const evCode = document.getElementById('tf_eventCode')?.value || activeEventCode || 'ESL2026';
             let h = '';
             for (let i = 1; i <= retainedCount; i++) {
                 const selVal = selectedRetained[i - 1] || '';
-                const opts = playerNames.map(n => {
-                    const bv = getPlayerBaseValue(n, evCode);
-                    return `<option value="${esc(n)}" ${n === selVal ? 'selected' : ''}>${esc(n)} (${formatNum(bv)})</option>`;
-                }).join('');
+                const opts = playerOptions(selVal, true);
                 h += `
                     <div style="margin-bottom:8px;">
                         <select class="tf-retained-select" data-slot="${i}" onchange="updateRetainedPurseImpact()" style="width:100%;padding:8px 12px;background:#FFFFFF;border:1px solid var(--border);border-radius:8px;font-size:0.88rem;color:var(--slate-800);">
@@ -4148,8 +4598,7 @@ function updateRetainedPurseImpact() {
     const banner = document.getElementById('tf_retainedPurseImpact');
     if (!banner) return;
     const targetEvent = (document.getElementById('tf_eventCode')?.value || activeEventCode || 'ESL2026').trim().toUpperCase();
-    const evObj = allEvents.find(e => (e.eventCode || '').toUpperCase() === targetEvent);
-    const budget = (evObj && evObj.budget !== undefined) ? parseFloat(evObj.budget) : 1000000;
+    const budget = teamStartingPurse(document.getElementById('tf_initialPurse').value, targetEvent);
 
     const curRetained = Array.from(document.querySelectorAll('.tf-retained-select')).map(s => s.value.trim()).filter(Boolean);
     if (curRetained.length === 0) {
@@ -4185,8 +4634,7 @@ function onTeamPlayerCountsChange() {
     const curOwners = Array.from(document.querySelectorAll('.tf-owner-select')).map(s => s.value);
     const curIcons = Array.from(document.querySelectorAll('.tf-icon-select')).map(s => s.value);
     const curRetained = Array.from(document.querySelectorAll('.tf-retained-select')).map(s => s.value);
-    renderDynamicPlayerSelectors(null, curOwners, curIcons, curRetained);
-    updateRetainedPurseImpact();
+    populateTeamFormPlayers(document.getElementById('tf_eventCode').value || activeEventCode, curOwners, curIcons, curRetained);
 }
 
 async function addTeam() {
@@ -4208,13 +4656,15 @@ async function addTeam() {
     }
 
     const targetEvObj = allEvents.find(e => e.eventCode === targetEvent);
-    const budget = (targetEvObj && targetEvObj.budget !== undefined) ? parseFloat(targetEvObj.budget) : (parseFloat(settings.budget_per_team) || 1000000);
     const maxP = (targetEvObj && targetEvObj.maxPlayers !== undefined) ? parseInt(targetEvObj.maxPlayers) : (parseInt(settings.max_players_per_team) || 11);
 
     // Read optional owner, icon and retained players
     const ownerPlayers = Array.from(document.querySelectorAll('.tf-owner-select')).map(s => s.value.trim()).filter(Boolean);
     const iconPlayers = Array.from(document.querySelectorAll('.tf-icon-select')).map(s => s.value.trim()).filter(Boolean);
     const retainedPlayers = Array.from(document.querySelectorAll('.tf-retained-select')).map(s => s.value.trim()).filter(Boolean);
+    if (!validateTeamForm(targetEvent, [...ownerPlayers, ...iconPlayers, ...retainedPlayers])) return;
+    const rawPurse = document.getElementById('tf_initialPurse').value;
+    const initialPurse = rawPurse === '' ? '' : Number(rawPurse);
     const numOwners = ownerPlayers.length;
     const numIcons = iconPlayers.length;
     const numRetained = retainedPlayers.length;
@@ -4225,16 +4675,16 @@ async function addTeam() {
     const logoDriveView = logoInput?.dataset?.driveViewUrl || (logoDriveId ? `https://drive.google.com/file/d/${logoDriveId}/view` : '');
     const sheetLogoUrl = logoDriveView || (logoVal.startsWith('http') ? logoVal : '');
 
-    const ownerNameStr = ownerPlayers.join(', ') || document.getElementById('tf_owner')?.value || '';
-
     const newTeam = {
         eventCode: targetEvent,
         teamName: teamName,
         logoUrl: sheetLogoUrl || logoVal,
         driveFileId: logoDriveId,
         driveViewUrl: logoDriveView,
-        ownerName: ownerNameStr,
+        ownerName: ownerPlayers.join(', '),
+        initialPurse,
         owners: ownerPlayers,
+        ownerPlayers,
         numOwners: numOwners,
         iconPlayer: iconPlayers[0] || '',
         iconPlayers: iconPlayers,
@@ -4245,12 +4695,16 @@ async function addTeam() {
         username: username,
         password: password,
         purseRemaining: calculateTeamPurseRemaining({
+            initialPurse,
             teamName: teamName,
             eventCode: targetEvent,
             retainedPlayers: retainedPlayers
         }, targetEvent),
         maxPlayers: maxP
     };
+
+    const result = await apiPost({ ...newTeam, action: 'addTeam', logoUrl: sheetLogoUrl });
+    if (result?.rejected) return toast(result.error, 'error');
 
     // 1. In-memory and local storage update
     allTeams.push(newTeam);
@@ -4268,9 +4722,6 @@ async function addTeam() {
             console.error('Firebase team save error:', e);
         }
     }
-
-    // 3. Best-effort Apps Script sync (clean Drive URL in Sheet, never raw base64)
-    apiPost(Object.assign({ action: 'addTeam' }, newTeam, { logoUrl: sheetLogoUrl })).catch(() => {});
 
     toast(`Team "${newTeam.teamName}" added to tournament ${targetEvent}!`, 'success');
 
@@ -4321,12 +4772,16 @@ async function saveEditTeam() {
     const ownerPlayers = Array.from(document.querySelectorAll('.tf-owner-select')).map(s => s.value.trim()).filter(Boolean);
     const iconPlayers = Array.from(document.querySelectorAll('.tf-icon-select')).map(s => s.value.trim()).filter(Boolean);
     const retainedPlayers = Array.from(document.querySelectorAll('.tf-retained-select')).map(s => s.value.trim()).filter(Boolean);
+    if (!validateTeamForm(targetEvent, [...ownerPlayers, ...iconPlayers, ...retainedPlayers])) return;
+    const rawPurse = document.getElementById('tf_initialPurse').value;
+    const initialPurse = rawPurse === '' ? '' : Number(rawPurse);
     const numOwners = ownerPlayers.length;
     const numIcons = iconPlayers.length;
     const numRetained = retainedPlayers.length;
 
     const logoInput = document.getElementById('tf_logo');
-    const existingTeam = allTeams.find(t => t.teamName === origName && (t.eventCode || 'ESL2026') === targetEvent) || allTeams.find(t => t.teamName === origName);
+    const origEv = (document.getElementById('tf_origEventCode')?.value || targetEvent).trim().toUpperCase();
+    const existingTeam = allTeams.find(t => t.teamName === origName && (t.eventCode || 'ESL2026').toUpperCase() === origEv);
     let logoVal = logoInput ? logoInput.value.trim() : '';
     if (logoInput?.dataset?.base64) {
         logoVal = logoInput.dataset.base64;
@@ -4338,16 +4793,22 @@ async function saveEditTeam() {
     const logoDriveView = logoInput?.dataset?.driveViewUrl || existingTeam?.driveViewUrl || (logoDriveId ? `https://drive.google.com/file/d/${logoDriveId}/view` : '');
     const sheetLogoUrl = logoDriveView || (logoVal.startsWith('http') ? logoVal : (existingTeam?.driveViewUrl || (existingTeam?.logoUrl && existingTeam.logoUrl.startsWith('http') ? existingTeam.logoUrl : '')));
 
-    const ownerNameStr = ownerPlayers.join(', ') || document.getElementById('tf_owner')?.value || '';
-
+    let purchaseLog = auctionLog;
+    if (targetEvent !== activeEventCode) {
+        const response = await apiGet('getAuctionLog', { eventCode: targetEvent });
+        if (!Array.isArray(response.log)) return toast('Could not load auction purchases for this tournament. Please retry.', 'error');
+        purchaseLog = response.log;
+    }
     const updated = {
         teamName: teamName,
         eventCode: targetEvent,
         logoUrl: sheetLogoUrl || logoVal,
         driveFileId: logoDriveId,
         driveViewUrl: logoDriveView,
-        ownerName: ownerNameStr,
+        ownerName: ownerPlayers.join(', '),
+        initialPurse,
         owners: ownerPlayers,
+        ownerPlayers,
         numOwners: numOwners,
         iconPlayer: iconPlayers[0] || '',
         iconPlayers: iconPlayers,
@@ -4358,13 +4819,16 @@ async function saveEditTeam() {
         username: username,
         password: password,
         purseRemaining: calculateTeamPurseRemaining({
+            initialPurse,
             teamName: origName,
             eventCode: targetEvent,
             retainedPlayers: retainedPlayers
-        }, targetEvent)
+        }, targetEvent, purchaseLog)
     };
 
-    const origEv = (document.getElementById('tf_origEventCode')?.value || targetEvent).trim().toUpperCase();
+    const result = await apiPost({ ...updated, action: 'updateTeam', originalName: origName, originalEventCode: origEv, logoUrl: sheetLogoUrl });
+    if (result?.rejected) return toast(result.error, 'error');
+
     const idx = allTeams.findIndex(t => t.teamName.toLowerCase() === origName.toLowerCase() && (t.eventCode || 'ESL2026').toUpperCase() === origEv);
     if (idx !== -1) {
         allTeams[idx] = Object.assign(allTeams[idx], updated);
@@ -4381,7 +4845,7 @@ async function saveEditTeam() {
         } catch(e) {}
     }
 
-    apiPost(Object.assign({ action: 'updateTeam' }, updated, { logoUrl: sheetLogoUrl })).catch(() => {});
+
 
     toast('Team updated successfully!', 'success');
     showTeamsListView();
@@ -4550,6 +5014,8 @@ function showAddPlayerView() {
     document.getElementById('pf_origName').value = '';
     document.getElementById('pf_origEventCode').value = '';
     document.getElementById('pf_name').value = '';
+    document.getElementById('pf_age').value = '';
+    document.getElementById('pf_cricketProfile').value = '';
     document.getElementById('pf_club').value = '';
     document.getElementById('pf_mobile').value = '';
     document.getElementById('pf_bookingId').value = '';
@@ -4603,10 +5069,12 @@ function showEditPlayerView(playerName, evCode) {
     document.getElementById('pf_origName').value = pName;
     document.getElementById('pf_origEventCode').value = pEvCode;
     document.getElementById('pf_name').value = pName;
-    document.getElementById('pf_club').value = player.Club || player.club || '';
+    document.getElementById('pf_age').value = PlayerCategories.fieldValue(player, 'Age');
+    document.getElementById('pf_cricketProfile').value = PlayerCategories.fieldValue(player, 'Cricketing Profile');
+    document.getElementById('pf_club').value = PlayerCategories.fieldValue(player, 'Club');
     document.getElementById('pf_mobile').value = player['Mobile Number'] || player.mobile || '';
     document.getElementById('pf_bookingId').value = player['Booking ID'] || player.bookingId || '';
-    document.getElementById('pf_price').value = player.BasePrice || player['BasePrice'] || player['Base Price'] || player.basePrice || player['Ticket Price'] || player.price || '';
+    document.getElementById('pf_price').value = PlayerPricing.entered(player) ?? '';
 
     renderPlayerEventSelectors();
     const formSel = document.getElementById('pf_eventCode');
@@ -4881,10 +5349,12 @@ function renderPlayersTable() {
         const photoUrl = getPlayerPhoto(p);
         const driveFileId = p.driveFileId || getDriveFileId(photoUrl) || getDriveFileId(p.Photo || p.photoUrl);
         const driveViewUrl = p.driveViewUrl || (driveFileId ? `https://drive.google.com/file/d/${driveFileId}/view` : '');
-        const club = p.Club || p.club || '-';
+        const event = allEvents.find(e => e.eventCode === (filterEv === 'ACTIVE' ? activeEventCode : filterEv === 'ALL' ? evCode : filterEv));
+        const classification = PlayerCategories.classify(p, event);
+        const club = classification.affiliation || classification.club || '-';
         const mobile = p['Mobile Number'] || p.mobile || '-';
         const bookingId = p['Booking ID'] || p.bookingId || '';
-        const basePrice = getPlayerBaseValue(p, evCode);
+        const basePrice = getPlayerBaseValue(p, evCode === 'ALL' ? activeEventCode : evCode);
 
         const bat = p['Batting Profile'] || p.battingProfile || '';
         const bowl = p['Bowling Profile'] || p.bowlingProfile || '';
@@ -4900,7 +5370,7 @@ function renderPlayersTable() {
         }
 
         // Roles badges
-        let roleBadges = [];
+        let roleBadges = classification.categories.map(name => `<span class="event-code-badge">${esc(name)}</span>`);
         if (isWk) roleBadges.push(`<span class="badge" style="background:#FEF3C7;color:#B45309;font-weight:600;font-size:0.7rem;padding:2px 6px;">🧤 WK</span>`);
         if (bat) roleBadges.push(`<span class="badge" style="background:#EFF6FF;color:#1D4ED8;font-size:0.7rem;padding:2px 6px;">🏏 ${esc(bat)}</span>`);
         if (bowl && bowl.toLowerCase() !== 'none' && !bowl.toLowerCase().includes('does not bowl')) {
@@ -4969,6 +5439,8 @@ async function addPlayer() {
         return toast(`Player "${name}" already exists in tournament ${targetEvent}!`, 'error');
     }
 
+    const ageInput = document.getElementById('pf_age');
+    if (!ageInput.reportValidity()) return;
     const club = document.getElementById('pf_club').value.trim();
     const mobile = document.getElementById('pf_mobile').value.trim();
     const bookingId = document.getElementById('pf_bookingId').value.trim();
@@ -5002,6 +5474,8 @@ async function addPlayer() {
         name: name,
         Club: club,
         club: club,
+        Age: ageInput.value,
+        'Cricketing Profile': document.getElementById('pf_cricketProfile').value.trim(),
         'Mobile Number': mobile,
         mobile: mobile,
         'Booking ID': bookingId,
@@ -5070,6 +5544,8 @@ async function saveEditPlayer() {
     const name = document.getElementById('pf_name').value.trim();
     if (!name) return toast('Player name is required', 'error');
 
+    const ageInput = document.getElementById('pf_age');
+    if (!ageInput.reportValidity()) return;
     const club = document.getElementById('pf_club').value.trim();
     const mobile = document.getElementById('pf_mobile').value.trim();
     const bookingId = document.getElementById('pf_bookingId').value.trim();
@@ -5107,6 +5583,8 @@ async function saveEditPlayer() {
         name: name,
         Club: club,
         club: club,
+        Age: ageInput.value,
+        'Cricketing Profile': document.getElementById('pf_cricketProfile').value.trim(),
         'Mobile Number': mobile,
         mobile: mobile,
         'Booking ID': bookingId,
@@ -5139,6 +5617,9 @@ async function saveEditPlayer() {
         Economy: economy || '0'
     });
 
+    for (const key of Object.keys(updated)) {
+        if (/^(player)?base(price|value)$/i.test(key.replace(/[\s_-]/g, ''))) updated[key] = price;
+    }
     allPlayers[pIdx] = updated;
     try { localStorage.setItem('cricket_players_' + targetEvent, JSON.stringify(allPlayers)); } catch(e){}
 
@@ -5195,12 +5676,7 @@ async function deletePlayer(name, evCode) {
 
 // ===================== PLAYER DROPDOWNS =====================
 function populatePlayerDropdowns() {
-    const targetEvent = document.getElementById('tf_eventCode')?.value || activeEventCode;
-    populatePlayerDropdownsForEvent(targetEvent);
-}
-
-function populatePlayerDropdownsForEvent(evCode) {
-    populateTeamFormPlayers(evCode);
+    onTeamPlayerCountsChange();
 }
 
 // ===================== TOURNAMENT-SCOPED SETTINGS & CONTROLS =====================
@@ -5421,21 +5897,14 @@ async function confirmResetEventAuction(targetCode) {
         }
     }
 
+    localStorage.removeItem('auctionRound:' + code);
     // 2. Clear local auction log for this tournament
     auctionLog = auctionLog.filter(l => (l.eventCode || 'ESL2026').trim().toUpperCase() !== code);
 
     // 3. Reset teams in memory & localStorage for this tournament
-    const evBudget = (ev && ev.budget) || 1000000;
     const evTeams = allTeams.filter(t => (t.eventCode || 'ESL2026').trim().toUpperCase() === code);
     evTeams.forEach(t => {
-        const retainedDeduction = getTeamRetainedDeduction(t, code);
-        t.purseRemaining = Math.max(0, evBudget - retainedDeduction);
-    });
-    allTeams.forEach(t => {
-        if ((t.eventCode || 'ESL2026').trim().toUpperCase() === code) {
-            const retainedDeduction = getTeamRetainedDeduction(t, code);
-            t.purseRemaining = Math.max(0, evBudget - retainedDeduction);
-        }
+        t.purseRemaining = calculateTeamPurseRemaining(t, code);
     });
     teams = getActiveEventTeams();
     try { localStorage.setItem('cricket_teams', JSON.stringify(allTeams)); } catch(e) {}
@@ -5521,6 +5990,7 @@ function confirmReset() { return confirmResetEventAuction(activeEventCode); }
 
 // ===================== AUCTION =====================
 function renderAuctionStatusBar() {
+    renderRoundControls();
     const evLog = getActiveEventLog();
     const sold = evLog.filter(l => l.status === 'Sold').length;
     const unsold = evLog.filter(l => l.status === 'Unsold').length;
@@ -5542,8 +6012,50 @@ function renderAuctionStatusBar() {
     `;
 }
 
-function getAvailablePlayers() {
-    const auctioned = new Set(getActiveEventLog().map(l => l.playerName));
+function auctionRound() {
+    const event = allEvents.find(e => e.eventCode === activeEventCode);
+    const rounds = (event?.playerCategories || []).filter(rule => rule.roundId);
+    if (rounds.length) rounds.push({ roundId: 'non-category', name: 'Non-category players', order: event.openRoundOrder });
+    const key = 'auctionRound:' + activeEventCode;
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(key)) || {}; } catch {}
+    const round = rounds.find(r => r.roundId === saved.id) || rounds[0];
+    const pass = round && saved.id === round.roundId ? Number(saved.pass) || 1 : 1;
+    return { event, rounds, key, round, pass };
+}
+
+function renderRoundControls() {
+    const { rounds, round, pass } = auctionRound();
+    document.getElementById('roundControls').hidden = !round;
+    if (!round) return;
+    const select = document.getElementById('roundSelect');
+    select.replaceChildren(...rounds.map(r => new Option(r.name, r.roundId)));
+    select.value = round.roundId;
+    select.disabled = Boolean(currentPlayerObj);
+    document.querySelector('#roundControls button').disabled = Boolean(currentPlayerObj);
+    document.getElementById('roundPass').textContent = pass > 1 ? 'Unsold retry ' + (pass - 1) : '';
+}
+
+function changeAuctionRound(id) {
+    if (currentPlayerObj) return renderRoundControls();
+    const { key } = auctionRound();
+    localStorage.setItem(key, JSON.stringify({ id, pass: 1 }));
+    renderRoundControls();
+    document.getElementById('auctionArea').innerHTML = '<p class="round-start-message" role="status">Pick the next player to start this round.</p>';
+}
+
+function retryRoundUnsold() {
+    const { key, round } = auctionRound();
+    if (!round || currentPlayerObj || !getAvailablePlayers(true).length) return;
+    const pass = getActiveEventLog().reduce((max, entry) =>
+        entry.roundId === round.roundId ? Math.max(max, Number(entry.roundPass) || 1) : max, 1) + 1;
+    localStorage.setItem(key, JSON.stringify({ id: round.roundId, pass }));
+    pickNextPlayer();
+}
+
+function getAvailablePlayers(retryCandidates = false) {
+    const { event, round, pass } = auctionRound();
+    const results = new Map(getActiveEventLog().map(entry => [entry.playerName, entry]));
     const preAssigned = new Set();
     const evTeams = getActiveEventTeams();
     evTeams.forEach(t => {
@@ -5555,11 +6067,31 @@ function getAvailablePlayers() {
     });
     return getActiveEventPlayers().filter(p => {
         const name = getPlayerName(p);
-        return !auctioned.has(name) && !preAssigned.has(name);
+        if (preAssigned.has(name)) return false;
+        const entry = results.get(name);
+        if (!round) return !entry;
+        const matches = PlayerCategories.classify(p, event).categories;
+        const eligible = round.roundId === 'non-category'
+            ? !event.playerCategories.some(rule => rule.roundId && matches.includes(rule.name))
+            : matches.includes(round.name);
+        if (!eligible) return false;
+        if (!retryCandidates && pass === 1) return !entry;
+        return entry?.status === 'Unsold' && entry.roundId === round.roundId &&
+            (retryCandidates || (Number(entry.roundPass) || 1) < pass);
     });
 }
 
+function chooseRoundPlayer(available, order = {}) {
+    const first = new Set(order.first || []);
+    const last = new Set(order.last || []);
+    const opening = available.filter(player => first.has(getPlayerName(player)));
+    const middle = available.filter(player => !last.has(getPlayerName(player)));
+    const group = opening.length ? opening : middle.length ? middle : available;
+    return group[Math.floor(Math.random() * group.length)];
+}
+
 function pickNextPlayer() {
+    if (waitingForOfflineBid()) return;
     // Reset team bidding controls and bid history for new player
     resetDisabledTeams();
     resetBidHistory();
@@ -5577,6 +6109,15 @@ function pickNextPlayer() {
 
     const available = getAvailablePlayers();
     if (available.length === 0) {
+        const { round } = auctionRound();
+        if (round) {
+            const count = getAvailablePlayers(true).length;
+            document.getElementById('auctionArea').innerHTML = `<div class="empty-state"><h3>${esc(round.name)} round complete</h3>
+                ${count ? `<button class="btn btn-gold" onclick="retryRoundUnsold()">Restart with ${count} unsold player(s)</button>` : ''}
+                </div>`;
+            renderRoundControls();
+            return;
+        }
         const unsoldPlayers = getActiveEventLog().filter(l => l.status === 'Unsold');
 
         if (unsoldPlayers.length > 0) {
@@ -5597,26 +6138,23 @@ function pickNextPlayer() {
         }
         return;
     }
-    const idx = Math.floor(Math.random() * available.length);
-    const player = available[idx];
+    const { event, round } = auctionRound();
+    const player = chooseRoundPlayer(available, round ? round.order : event?.openRoundOrder);
     currentPlayerObj = player;
+    renderRoundControls();
 
     const name = getPlayerName(player);
     const photo = getPlayerPhoto(player);
     const role = getRoleTag(player);
 
-    // Detect club (Home/Away)
-    let playerClub = '';
-    playerHeaders.forEach(h => {
-        if (h.toLowerCase().trim() === 'club' && player[h]) playerClub = player[h].trim();
-    });
+    const playerClub = PlayerCategories.fieldValue(player, 'Club');
 
     // Build player details for Firebase
     const details = {};
     playerHeaders.forEach(h => {
         if (isNameField(h) || isPhotoField(h)) return;
         if (h.toLowerCase().trim() === 'club') return; // shown as badge
-        if (player[h] && player[h].trim()) details[h] = player[h];
+        if (player[h] != null && String(player[h]).trim()) details[h] = player[h];
     });
 
     // Check badges
@@ -5647,7 +6185,7 @@ function pickNextPlayer() {
             photo: photo || '',
             photoUrl: photo || '',
             Photo: photo || '',
-            role: role || '',
+            role: PlayerCategories.fieldValue(player, 'Cricketing Profile') || role || '',
             club: playerClub || player.Club || '',
             Club: playerClub || player.Club || '',
             basePrice: playerBaseValue,
@@ -5657,18 +6195,69 @@ function pickNextPlayer() {
         }),
         currentBid: 0,
         currentBidder: '',
+        bidLevels: allEvents.find(event => event.eventCode === activeEventCode)?.bidLevels || BidLevels.defaults,
         baseValue: playerBaseValue
     });
 
     showPlayerOnStage(player);
 }
 
+
+let pendingOfflineBids = 0;
+
+function waitingForOfflineBid() {
+    if (!isOfflineAuction() || pendingOfflineBids === 0) return false;
+    toast('Waiting for the bid to be recorded.', 'error');
+    return true;
+}
+
+async function placeOfflineBid(teamName, useMax = false, custom = null) {
+    if (!db || !isOfflineAuction() || !currentPlayerObj) return;
+    const team = teams.find(t => t.teamName === teamName);
+    if (!team) return;
+    const { toBuy, maxBid } = getTeamBidCapacity(team);
+    if (!toBuy) return toast('This squad is full.', 'error');
+    const code = activeEventCode;
+    const playerName = getPlayerName(currentPlayerObj);
+    if (useMax && !window.confirm(`Bid ${formatNum(maxBid)} for ${playerName} on behalf of ${teamName}?`)) return;
+    const liveRef = db.ref(`auctions/${code}/live`);
+    pendingOfflineBids++;
+    try {
+        const result = await liveRef.transaction(live => {
+            if (!live || live.status !== 'bidding' || live.auctionMode !== 'offline' ||
+                live.currentPlayer?.name !== playerName || activeEventCode !== code || live.currentBidder === teamName) return;
+            if (useMax && (!live.currentBidder || maxBid <= Number(live.currentBid))) return;
+            let next = Number(live.baseValue);
+            if (live.currentBidder) next = useMax ? maxBid : BidLevels.minimum(Number(live.currentBid), live.bidLevels);
+            if (custom !== null) {
+                if (!live.currentBidder || !BidLevels.validCustom(custom, next, maxBid)) return;
+                next = custom;
+            }
+            if (!Number.isSafeInteger(next) || next > maxBid) return;
+            return { ...live, currentBid: next, currentBidder: teamName, lastBidTime: Date.now() };
+        }, undefined, false);
+        if (!result.committed) toast('Bid declined. Check the active player and the maximum bid for this team.', 'error');
+    } catch (error) {
+        toast('Could not record the bid. ' + error.message, 'error');
+    } finally {
+        pendingOfflineBids--;
+    }
+}
+
 function showPlayerOnStage(player) {
     currentPlayerObj = player;
+    renderRoundControls();
 
     const timerMax = parseInt(settings.timer_seconds) || 30;
-    timerSeconds = timerMax;
-    fbBroadcastTimer(false, timerMax);
+    const offline = isOfflineAuction();
+    if (offline) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        fbClearTimer();
+    } else {
+        timerSeconds = timerMax;
+        fbBroadcastTimer(false, timerMax);
+    }
 
     const playerBaseValue = getPlayerBaseValue(player, activeEventCode);
     const playerDetailHtml = buildAdminPlayerDetailHtml(player);
@@ -5678,7 +6267,7 @@ function showPlayerOnStage(player) {
         <!-- Column 1: Player Detail -->
         <div class="auction-col auction-col-player">
             <div class="auction-col-title">Player Profile</div>
-            ${playerDetailHtml}
+            <div id="stagePlayerProfile">${playerDetailHtml}</div>
         </div>
 
         <!-- Column 2: Auction Controls -->
@@ -5687,25 +6276,25 @@ function showPlayerOnStage(player) {
             <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:6px;">
                 Base Value: <strong style="color:var(--bright-gold);">${formatNum(playerBaseValue)}</strong>
             </div>
-            <div class="timer-display" id="timerDisplay">${timerMax}</div>
+            ${offline ? '' : `<div class="timer-display" id="timerDisplay">${timerMax}</div>
             <div class="timer-extend-bar">
                 <span style="font-size:0.75rem;font-weight:600;color:var(--slate-500);margin-right:2px;">Extend:</span>
                 <button class="timer-extend-btn" onclick="extendTimer(10)">+10s</button>
                 <button class="timer-extend-btn" onclick="extendTimer(20)">+20s</button>
-            </div>
-            <div class="bid-info" id="bidInfo"><span style="color:var(--text-secondary);">Waiting for PICK...</span></div>
+            </div>`}
+            <div class="bid-info" id="bidInfo"><span style="color:var(--text-secondary);">${isOfflineAuction() ? "Select a team to bid" : "Waiting for PICK..."} </span></div>
             <div class="bid-history-bar">
                 <button class="undo-bid-btn" id="undoBidBtn" onclick="undoLastBid()" disabled>&#8630; Undo Bid</button>
                 <span class="bid-history-count" id="bidHistoryCount"></span>
             </div>
-            <div class="team-bid-controls" id="teamBidControls">
+            ${offline ? '' : `<div class="team-bid-controls" id="teamBidControls">
                 <div class="team-bid-controls-title">Allow Bidding</div>
                 <div class="team-bid-grid" id="teamBidGrid"></div>
-            </div>
+            </div>`}
             <div class="auction-controls">
                 <button class="btn btn-green" onclick="soldToHighestBidder()">SOLD</button>
                 <button class="btn btn-red" onclick="markUnsold()">UNSOLD</button>
-                <button class="btn btn-orange" id="timerBtn" onclick="toggleTimer()">Start Timer</button>
+                ${offline ? '' : `<button class="btn btn-orange" id="timerBtn" onclick="toggleTimer()">Start Timer</button>`}
                 <button class="btn btn-gold" onclick="pickNextPlayer()">Next Player</button>
             </div>
         </div>
@@ -5717,12 +6306,26 @@ function showPlayerOnStage(player) {
         </div>
     `;
 
+    if (offline) {
+        document.getElementById('teamStatsPanel').onclick = event => {
+            const button = event.target.closest('button[data-bid-team]');
+            if (!button) return;
+            const team = teams[Number(button.dataset.bidTeam)];
+            if (button.hasAttribute('data-custom-bid')) {
+                const amount = BidLevels.ask(Number(button.dataset.minimum), getTeamBidCapacity(team).maxBid);
+                if (amount !== null) placeOfflineBid(team.teamName, false, amount);
+            } else {
+                placeOfflineBid(team.teamName, button.hasAttribute('data-max-bid'));
+            }
+        };
+    }
     updateAdminBidDisplay();
     renderTeamBidCheckboxes();
     fbListenForBidsWithHistory();
 }
 
 function toggleTimer() {
+    if (isOfflineAuction()) return;
     const btn = document.getElementById('timerBtn');
     if (timerInterval) {
         clearInterval(timerInterval);
@@ -5754,6 +6357,7 @@ function toggleTimer() {
 }
 
 function extendTimer(addSecs) {
+    if (isOfflineAuction()) return;
     if (timerSeconds <= 0) {
         timerSeconds = addSecs;
     } else {
@@ -5771,12 +6375,14 @@ function extendTimer(addSecs) {
 
 // Auto-sell when timer expires
 async function autoSellOnTimeout() {
+    if (isOfflineAuction()) return;
     if (!db || !currentPlayerObj) return;
     const snap = await db.ref(`auctions/${activeEventCode}/live`).once('value');
     const data = snap.val();
     const bid = (data && parseFloat(data.currentBid)) || 0;
     const bidder = (data && data.currentBidder) || '';
 
+    if (isOfflineAuction()) return;
     if (bid > 0 && bidder) {
         // Auto-fill and confirm sold
         const select = document.getElementById('sold_team');
@@ -5795,6 +6401,7 @@ async function autoSellOnTimeout() {
 
 // Mark player as UNSOLD (no one picked/bid)
 async function markUnsold() {
+    if (waitingForOfflineBid()) return;
     if (!currentPlayerObj) return;
     const playerName = getPlayerName(currentPlayerObj);
     clearInterval(timerInterval);
@@ -5809,13 +6416,16 @@ async function markUnsold() {
         currentBidder: ''
     });
 
-    const res = await apiPost({ action: 'unsoldPlayer', playerName: playerName, eventCode: activeEventCode });
+    const { round, pass } = auctionRound();
+    const roundFields = round ? { roundId: round.roundId, roundPass: pass } : {};
+    const res = await apiPost({ action: 'unsoldPlayer', playerName, eventCode: activeEventCode, ...roundFields });
     if (res.error) return toast(res.error, 'error');
     toast(`${playerName} — UNSOLD`, 'error');
     currentPlayerObj = null;
 
     // Update local log immediately
-    auctionLog.push({ playerName, status: 'Unsold' });
+    auctionLog = auctionLog.filter(l => l.playerName !== playerName || (l.eventCode || 'ESL2026') !== activeEventCode);
+    auctionLog.push({ playerName, status: 'Unsold', ...roundFields, eventCode: activeEventCode });
     fbBroadcastLog();
     skipLogOverwrite = true;
     await loadAll();
@@ -5839,6 +6449,7 @@ async function markUnsold() {
 
 // SOLD button now reads the highest bid from Firebase and pre-fills the modal
 function soldToHighestBidder() {
+    if (waitingForOfflineBid()) return;
     if (!currentPlayerObj) return toast('No player selected', 'error');
     if (teams.length === 0) return toast('No teams registered. Add teams first.', 'error');
     if (!db) { openSoldModal(); return; }
@@ -5875,6 +6486,7 @@ function closeSoldModal() {
 }
 
 async function confirmSold() {
+    if (waitingForOfflineBid()) return;
     const teamName = document.getElementById('sold_team').value;
     const price = document.getElementById('sold_price').value;
     if (!price || parseFloat(price) <= 0) return toast('Enter a valid price', 'error');
@@ -5907,6 +6519,7 @@ async function confirmSold() {
     currentPlayerObj = null;
 
     // Update local log immediately so it's not overwritten by stale backend data
+    auctionLog = auctionLog.filter(l => l.playerName !== playerName || (l.eventCode || 'ESL2026') !== activeEventCode);
     auctionLog.push({ playerName, team: teamName, price: parseFloat(price), status: 'Sold', eventCode: activeEventCode });
     fbBroadcastLog();
     const winTeam = allTeams.find(t => (t.teamName || '').toLowerCase() === teamName.toLowerCase() && (t.eventCode || 'ESL2026') === activeEventCode);
@@ -5928,12 +6541,15 @@ async function confirmSold() {
                     <p>Ready for the next player?</p>
                     <button class="btn btn-gold" onclick="pickNextPlayer()" style="margin-top:16px;">Pick Next Player</button>
                 </div>`;
+        } else if (auctionRound().round) {
+            pickNextPlayer();
         }
         fbBroadcastLive({ status: 'waiting', currentPlayer: null, currentBid: 0, currentBidder: '' });
     }, 500);
 }
 
 async function reenterAllUnsoldAndStart() {
+    if (auctionRound().round) return retryRoundUnsold();
     const unsoldNames = auctionLog.filter(l => l.status === 'Unsold').map(l => l.playerName);
     if (unsoldNames.length === 0) return toast('No unsold players to re-enter', 'error');
 
@@ -5957,6 +6573,7 @@ async function reenterAllUnsoldAndStart() {
 }
 
 async function reenterPlayer(playerName) {
+    if (auctionRound().round) return toast('Use the unsold restart for this player’s round.', 'error');
     // Remove from backend (best-effort)
     try { await apiPost({ action: 'reenterPlayer', playerName: playerName, eventCode: activeEventCode }); } catch(e) {}
 
@@ -6095,32 +6712,19 @@ const _fieldIcons = {
 };
 function _icon(h) { return _fieldIcons[h.toLowerCase().trim()] || '&#128196;'; }
 
-function getClubForPlayer(playerName) {
-    for (const p of allPlayers) {
-        if (getPlayerName(p) === playerName) {
-            for (const h of playerHeaders) {
-                if (_isClub(h) && p[h]) return p[h].trim().toLowerCase();
-            }
-        }
-    }
-    return null;
-}
-
 function buildAdminPlayerDetailHtml(player) {
     const name = getPlayerName(player);
     const initials = getInitials(name);
     const photo = getPlayerPhoto(player);
     const role = getRoleTag(player);
-    let club = '';
-    playerHeaders.forEach(h => { if (_isClub(h) && player[h]) club = player[h].trim().toLowerCase(); });
+    const event = allEvents.find(e => e.eventCode === activeEventCode);
 
     // Badges
     let badges = '';
     const baseVal = getPlayerBaseValue(player, activeEventCode);
     if (baseVal > 0) badges += `<span class="pdl-badge" style="background:rgba(212,168,67,0.18);color:var(--bright-gold);border:1px solid rgba(212,168,67,0.35);font-weight:700;">💰 Base: ${formatNum(baseVal)}</span>`;
     if (role) badges += `<span class="pdl-badge pdl-badge-role">${esc(role)}</span>`;
-    if (club === 'home') badges += `<span class="pdl-badge pdl-badge-home">&#127968; Home</span>`;
-    if (club === 'away') badges += `<span class="pdl-badge pdl-badge-away">&#9992;&#65039; Away</span>`;
+    badges += PlayerCategories.badges(player, event, esc);
     teams.forEach(t => {
         if (t.iconPlayer === name || (t.iconPlayers && t.iconPlayers.includes(name))) badges += `<span class="pdl-badge pdl-badge-icon">&#11088; Icon — ${esc(t.teamName)}</span>`;
         if (getTeamOwners(t).includes(name)) badges += `<span class="pdl-badge pdl-badge-owner">&#128081; Owner — ${esc(t.teamName)}</span>`;
@@ -6137,8 +6741,8 @@ function buildAdminPlayerDetailHtml(player) {
     playerHeaders.forEach(h => {
         if (isNameField(h) || isPhotoField(h) || _isHidden(h) || _isClub(h)) return;
         const val = player[h];
-        if (!val || !val.trim()) return;
-        const e = { header: h, value: val, icon: _icon(h) };
+        if (val == null || !String(val).trim()) return;
+        const e = { header: h, value: String(val), icon: _icon(h) };
         if (_isBat(h)) batting.push(e);
         else if (_isBowl(h)) bowling.push(e);
         else regular.push(e);
@@ -6163,38 +6767,39 @@ function buildAdminPlayerDetailHtml(player) {
     `;
 }
 
+function getTeamBidCapacity(t) {
+    const teamSold = getActiveEventLog().filter(l => l.status === 'Sold' && l.team === t.teamName);
+    const purse = Number(t.purseRemaining) || 0;
+    const icons = t.iconPlayers?.filter(Boolean).length || (t.iconPlayer ? 1 : 0);
+    const squadSize = teamSold.length + getTeamOwners(t).length + icons + getTeamRetainedPlayers(t).length;
+    const maxPlayers = Number(t.maxPlayers || settings.max_players_per_team) || 11;
+    const toBuy = Math.max(0, maxPlayers - squadSize);
+    const maxBid = Math.max(0, purse - Math.max(0, toBuy - 1) * MIN_PLAYER_VALUE);
+    return { teamSold, purse, squadSize, toBuy, maxBid };
+}
+
 function buildTeamsStatusHtml() {
-    const soldMap = {};
-    auctionLog.filter(l => l.status === 'Sold').forEach(l => {
-        if (!soldMap[l.team]) soldMap[l.team] = [];
-        soldMap[l.team].push(l);
-    });
-
-    return teams.map(t => {
-        const teamSold = soldMap[t.teamName] || [];
-        const purse = t.purseRemaining || 0;
-        let squadSize = teamSold.length;
-        squadSize += getTeamOwners(t).length;
-        if (t.iconPlayers && Array.isArray(t.iconPlayers) && t.iconPlayers.length > 0) squadSize += t.iconPlayers.filter(Boolean).length;
-        else if (t.iconPlayer) squadSize++;
-        if (t.retainedPlayers && Array.isArray(t.retainedPlayers) && t.retainedPlayers.length > 0) squadSize += t.retainedPlayers.filter(Boolean).length;
-        else if (t.retainedPlayer) squadSize += t.retainedPlayer.split(',').map(s=>s.trim()).filter(Boolean).length;
-        const maxPlayers = t.maxPlayers || parseInt(settings.max_players_per_team) || 11;
-        const toBuy = Math.max(0, maxPlayers - squadSize);
-        const slotsNeeded = toBuy > 0 ? toBuy - 1 : 0;
-        const maxBid = Math.max(0, purse - (slotsNeeded * MIN_PLAYER_VALUE));
-
-        let homeCount = 0, awayCount = 0;
+    const event = allEvents.find(e => e.eventCode === activeEventCode);
+    const players = new Map(getActiveEventPlayers().map(player => [getPlayerName(player), player]));
+    return teams.map((t, index) => {
+        const { teamSold, purse, squadSize, toBuy, maxBid } = getTeamBidCapacity(t);
+        const counts = new Map();
+        if (event?.hostClub?.trim()) {
+            counts.set('Home', 0);
+            counts.set('Away', 0);
+        }
+        for (const rule of event?.playerCategories || []) counts.set(rule.name, 0);
         const allTP = [...teamSold.map(s => s.playerName)];
         getTeamOwners(t).forEach(o => allTP.push(o));
         if (t.iconPlayers && Array.isArray(t.iconPlayers)) t.iconPlayers.forEach(p => p && allTP.push(p));
         else if (t.iconPlayer) allTP.push(t.iconPlayer);
         if (t.retainedPlayers && Array.isArray(t.retainedPlayers)) t.retainedPlayers.forEach(p => p && allTP.push(p));
         else if (t.retainedPlayer) t.retainedPlayer.split(',').forEach(p => p.trim() && allTP.push(p.trim()));
-        allTP.forEach(pn => {
-            const c = getClubForPlayer(pn);
-            if (c === 'home') homeCount++;
-            else if (c === 'away') awayCount++;
+        new Set(allTP).forEach(pn => {
+            const { affiliation, categories } = PlayerCategories.classify(players.get(pn), event);
+            for (const label of new Set([affiliation, ...categories])) {
+                if (counts.has(label)) counts.set(label, counts.get(label) + 1);
+            }
         });
 
         const tDriveId = getDriveFileId(t.logoUrl) || t.driveFileId;
@@ -6204,14 +6809,17 @@ function buildTeamsStatusHtml() {
             : `<div class="auction-team-logo-ph">${esc(t.teamName[0])}</div>`;
 
         return `<div class="auction-team-row">
-            <div class="auction-team-header">${logo}<span class="auction-team-name">${esc(t.teamName)}</span></div>
+            <div class="auction-team-header">${logo}<span class="auction-team-name">${esc(t.teamName)}</span>
+                ${isOfflineAuction() ? `<button type="button" class="btn btn-gold btn-sm" data-bid-team="${index}" ${toBuy && maxBid > 0 ? '' : 'disabled'}>Bid</button>
+                <button type="button" class="btn btn-outline btn-sm" data-bid-team="${index}" data-custom-bid disabled>Custom bid</button>
+                <button type="button" class="btn btn-outline btn-sm" data-bid-team="${index}" data-max-bid disabled>Max Bid</button>` : ''}
+            </div>
             <div class="auction-team-stats">
                 <div class="auction-team-stat"><div class="auction-team-stat-val gold">${formatNum(purse)}</div><div class="auction-team-stat-label">Purse</div></div>
                 <div class="auction-team-stat"><div class="auction-team-stat-val green">${formatNum(maxBid)}</div><div class="auction-team-stat-label">Max Bid</div></div>
                 <div class="auction-team-stat"><div class="auction-team-stat-val">${squadSize}</div><div class="auction-team-stat-label">Total</div></div>
                 <div class="auction-team-stat"><div class="auction-team-stat-val">${toBuy}</div><div class="auction-team-stat-label">To Buy</div></div>
-                <div class="auction-team-stat"><div class="auction-team-stat-val home-c">${homeCount}</div><div class="auction-team-stat-label">&#127968; Home</div></div>
-                <div class="auction-team-stat"><div class="auction-team-stat-val away-c">${awayCount}</div><div class="auction-team-stat-label">&#9992;&#65039; Away</div></div>
+                ${[...counts].map(([label, count]) => `<div class="auction-team-stat"><div class="auction-team-stat-val">${count}</div><div class="auction-team-stat-label">${esc(label)}</div></div>`).join('')}
             </div>
         </div>`;
     }).join('');

@@ -736,6 +736,8 @@
     </style>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="/player-pricing.js"></script>
+    <script src="/player-categories.js"></script>
 </head>
 <body>
 
@@ -809,6 +811,7 @@ let db = null;
 let MIN_PLAYER_VALUE = 10000;
 let currentEventCode = '';
 let currentEventObj = null;
+let currentStageData = null;
 let availableEvents = [];
 let cachedTimerData = null;
 
@@ -1087,24 +1090,6 @@ function _getPhoto(player) {
     return null;
 }
 
-function _getClub(player) {
-    if (player.club) {
-        const v = String(player.club).trim().toLowerCase();
-        if (v === 'home' || v === 'away') return v;
-    }
-    if (player.Club) {
-        const v = String(player.Club).trim().toLowerCase();
-        if (v === 'home' || v === 'away') return v;
-    }
-    for (const h of sheetHeaders) {
-        if (_isClub(h) && player[h]) {
-            const v = String(player[h]).trim().toLowerCase();
-            if (v === 'home' || v === 'away') return v;
-        }
-    }
-    return null;
-}
-
 function _getRole(player) {
     if (player.role) return player.role;
     for (const [h, v] of Object.entries(player)) {
@@ -1136,17 +1121,12 @@ function buildPlayerDetailHtml(player) {
     const name = _getField(player, 'Name', 'name', 'playerName') || 'Unknown Player';
     const initials = getInitials(name);
     const photo = _getField(player, 'Photo', 'photoUrl', 'photo', 'image');
-    const club = _getField(player, 'Club', 'club').toLowerCase();
     const battingProfile = _getField(player, 'Batting Profile', 'battingProfile', 'Batting Style', 'role');
     const battingPosition = _getField(player, 'Batting position', 'battingPosition', 'Batting Position', 'batting order');
     const bowlingProfile = _getField(player, 'Bowling Profile', 'bowlingProfile', 'Bowling Style');
     const isWk = _getField(player, 'Are you a wicket keeper?', 'wicketKeeper', 'Wicket Keeper', 'keeper').toLowerCase() === 'yes';
 
-    const baseVal = parseFloat(
-        player.baseValue ||
-        _getField(player, 'BasePrice', 'Base Price', 'basePrice', 'Ticket Price', 'price') ||
-        MIN_PLAYER_VALUE || 10000
-    );
+    const baseVal = PlayerPricing.resolve(player, currentEventObj, MIN_PLAYER_VALUE);
 
     // Batting stats
     const matches = _getField(player, 'Matches', 'matches') || '0';
@@ -1171,8 +1151,7 @@ function buildPlayerDetailHtml(player) {
     // Badges
     let badgesHtml = '';
     if (baseVal > 0) badgesHtml += `<span class="pdl-badge" style="background:rgba(212,168,67,0.18);color:var(--bright-gold);border:1px solid rgba(212,168,67,0.35);font-weight:700;">💰 Base: ${formatNum(baseVal)}</span>`;
-    if (club === 'home') badgesHtml += `<span class="pdl-badge pdl-badge-home">&#127968; Home Club</span>`;
-    else if (club === 'away') badgesHtml += `<span class="pdl-badge pdl-badge-away">&#9992;&#65039; Away Club</span>`;
+    badgesHtml += PlayerCategories.badges(player, currentEventObj, esc);
     if (battingProfile) badgesHtml += `<span class="pdl-badge pdl-badge-role">🏏 ${esc(battingProfile)}</span>`;
     if (bowlingProfile && bowlingProfile.toLowerCase() !== 'none') badgesHtml += `<span class="pdl-badge" style="background:#FDF2F8;color:#DB2777;border:1px solid #FBCFE8;">🎯 ${esc(bowlingProfile)}</span>`;
     if (isWk) badgesHtml += `<span class="pdl-badge" style="background:#FFFBEB;color:#D97706;border:1px solid #FDE68A;">🧤 Wicket Keeper</span>`;
@@ -1327,6 +1306,7 @@ function attachListeners() {
             const found = availableEvents.find(e => e.eventCode === currentEventCode);
             if (found) {
                 currentEventObj = found;
+                if (currentStageData?.status === 'bidding') renderAuctionStage(currentStageData);
                 if (found.maxPlayers) MAX_PLAYERS_PER_TEAM = parseInt(found.maxPlayers);
                 updateEventDisplayHeader();
                 renderTeams();
@@ -1496,6 +1476,7 @@ function handleTimerUpdate(timerData) {
 
 // ===================== RENDER: AUCTION STAGE =====================
 function renderAuctionStage(data) {
+    currentStageData = data;
     const stage = document.getElementById('auctionStage');
     if (!data) {
         stage.innerHTML = '<div class="waiting-msg">Auction has not started yet</div>';
@@ -1532,14 +1513,19 @@ function renderAuctionStage(data) {
             `;
         }
 
+        const offline = data.auctionMode === 'offline' || currentEventObj?.auctionMode === 'offline';
         stage.innerHTML = `
             <div class="live-label"><span class="live-dot"></span> LIVE AUCTION</div>
             ${playerCard}
-            <div class="timer-label">Timer</div>
-            <div class="timer-display" id="timerDisplay">--</div>
+            ${offline ? '' : `<div class="timer-label">Timer</div>
+            <div class="timer-display" id="timerDisplay">--</div>`}
             ${bidHtml}
         `;
 
+        if (offline) {
+            clearInterval(localTimerInterval);
+            return;
+        }
         // Re-apply timer
         if (cachedTimerData) {
             handleTimerUpdate(cachedTimerData);

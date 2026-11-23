@@ -131,6 +131,7 @@ export default function TournamentHub({ onNavigate }) {
                   </h3>
 
                   <div style={{ fontSize: '0.85rem', color: 'var(--slate-400)', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {ev.auctionMode === 'offline' && <div>Offline auction · Auctioneer enters bids</div>}
                     {ev.venue && <div>📍 Venue: <strong style={{ color: 'var(--slate-200)' }}>{ev.venue}</strong></div>}
                     {ev.startDate && <div>🗓️ Dates: <strong style={{ color: 'var(--slate-200)' }}>{ev.startDate} {ev.endDate ? `to ${ev.endDate}` : ''}</strong></div>}
                     {ev.budget && <div>💰 Team Budget: <strong style={{ color: '#FBBF24' }}>₹{Number(ev.budget).toLocaleString('en-IN')}</strong></div>}
@@ -138,17 +139,18 @@ export default function TournamentHub({ onNavigate }) {
 
                   {/* Actions */}
                   <div style={{ marginTop: 'auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <button 
+                    {ev.auctionMode !== 'offline' && <button
                       className="btn btn-gold btn-sm"
                       onClick={() => onNavigate(`/team-login/${evCode}`)}
                       id={`btn-team-login-${evCode}`}
                     >
                       👥 Team Login
-                    </button>
+                    </button>}
                     <button 
                       className="btn btn-primary btn-sm"
                       onClick={() => onNavigate(`/spectator/${evCode}`)}
                       id={`btn-spectator-${evCode}`}
+                      style={ev.auctionMode === 'offline' ? { gridColumn: 'span 2' } : undefined}
                     >
                       🖥️ Spectator Stage
                     </button>

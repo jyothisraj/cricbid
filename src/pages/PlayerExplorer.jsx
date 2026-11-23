@@ -1,5 +1,6 @@
+import PlayerCategories from '../components/PlayerCategories';
 import React, { useState, useEffect, useMemo } from 'react';
-import { listenPlayers, listenAuctionLog, listenTeams, formatNum } from '../services/api';
+import { listenPlayers, listenAuctionLog, listenTeams, formatImageUrl, formatNum } from '../services/api';
 import ImageWithFallback from '../components/ImageWithFallback';
 import PlayerProfileCard from '../components/PlayerProfileCard';
 
@@ -50,7 +51,7 @@ function getPlayerRole(p) {
   return hasBowling && batStyle ? 'ALLROUNDER' : (hasBowling ? 'BOWLER' : 'BATSMAN');
 }
 
-export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
+export default function PlayerExplorer({ eventCode = 'ESL2026', tournament, onNavigate }) {
   const currentEvent = (eventCode || 'ESL2026').toUpperCase();
 
   const [players, setPlayers] = useState([]);
@@ -206,6 +207,7 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
         const matchesSearch =
           name.toLowerCase().includes(q) ||
           club.includes(q) ||
+          window.PlayerCategories.classify(p, tournament).labels.some(label => label.toLowerCase().includes(q)) ||
           batStyle.includes(q) ||
           bowlStyle.includes(q) ||
           batPos.includes(q) ||
@@ -238,7 +240,7 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
 
       return true;
     });
-  }, [players, search, roleFilter, statusFilter, soldMap, unsoldSet, ownerMap, iconMap, retainedMap]);
+  }, [players, tournament, search, roleFilter, statusFilter, soldMap, unsoldSet, ownerMap, iconMap, retainedMap]);
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 20px' }}>
@@ -401,7 +403,7 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
             const name = p.Name || p.name || 'Unknown';
             const cn = cleanName(name);
             const rawPhoto = p.Photo || p.photoUrl || '';
-            const club = p.Club || p.club || '';
+            const { affiliation, club, categories } = window.PlayerCategories.classify(p, tournament);
             const batStyle = p['Batting Profile'] || p.battingProfile || '';
             const bowlStyle = p['Bowling Profile'] || p.bowlingProfile || '';
             const batPos = p['Batting position'] || p.battingPosition || '';
@@ -414,7 +416,7 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
             const retainedInfo = retainedMap.get(cn);
 
             const playerRole = getPlayerRole(p);
-            const basePrice = Number(p.BasePrice || p['Base Price'] || p.basePrice || p['Ticket Price'] || 10000);
+            const basePrice = window.PlayerPricing.resolve(p, tournament);
 
             return (
               <div 
@@ -476,11 +478,7 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
                       {name}
                     </h3>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      {club && (
-                        <span style={{ fontSize: '0.74rem', color: club.toLowerCase() === 'home' ? '#34D399' : '#A5B4FC', fontWeight: 600 }}>
-                          {club.toLowerCase() === 'home' ? '🏠 Home' : '✈️ Away'}
-                        </span>
-                      )}
+                      {(affiliation || club) && <span className="badge badge-event">{affiliation || club}</span>}
                       <button
                         onClick={() => setSelectedPlayer(p)}
                         style={{
@@ -498,6 +496,8 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
                     </div>
                   </div>
                 </div>
+
+          <PlayerCategories categories={categories} />
 
                 {/* Role and Attributes Badges */}
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
@@ -717,10 +717,9 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', onNavigate }) {
             </div>
             {/* Render full PlayerProfileCard with stats */}
             <PlayerProfileCard 
+              tournament={tournament}
+              onEnlargePhoto={src => setSelectedPhoto(formatImageUrl(src))}
               player={selectedPlayer} 
-              liveData={{
-                baseValue: Number(selectedPlayer.BasePrice || selectedPlayer['Base Price'] || selectedPlayer.basePrice || selectedPlayer['Ticket Price'] || 10000)
-              }} 
             />
           </div>
         </div>

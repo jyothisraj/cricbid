@@ -864,6 +864,8 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="/player-pricing.js"></script>
+    <script src="/player-categories.js"></script>
 </head>
 <body>
     <!-- Header -->
@@ -1100,21 +1102,14 @@
             return key === 'club';
         }
 
-        function getPlayerClub(player) {
-            for (const header of headers) {
-                if (isClubField(header) && player[header]) {
-                    const val = player[header].trim().toLowerCase();
-                    if (val === 'home') return 'home';
-                    if (val === 'away') return 'away';
-                }
-            }
-            return null;
-        }
-
-        function clubIcon(type) {
-            if (type === 'home') return '&#127968;'; // house
-            if (type === 'away') return '&#9992;&#65039;'; // airplane
-            return '';
+        function playerClassificationHtml(player, badgeClass) {
+            const code = selectedEventCode || PlayerCategories.fieldValue(player, 'Event Code') || PlayerCategories.fieldValue(player, 'Event') || 'ESL2026';
+            const event = availableEvents.find(e => e.eventCode === code.toUpperCase());
+            const { affiliation, club, categories } = PlayerCategories.classify(player, event);
+            const badge = name => `<span class="${badgeClass}">${escapeHtml(name)}</span>`;
+            const group = categories.length ? `<div aria-label="Player categories" style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;"><strong>Categories</strong> ${categories.map(badge).join(' ')}</div>` : '';
+            const price = PlayerPricing.resolve(player, event);
+            return badge('Base price ' + String.fromCharCode(8377) + price.toLocaleString('en-IN')) + ((affiliation || club) ? badge(affiliation || club) : '') + group;
         }
 
         // Batting stats fields
@@ -1264,7 +1259,7 @@
                 const initials = getInitials(name);
                 const role = getRoleTag(player);
                 const photo = getPlayerPhoto(player);
-                const club = getPlayerClub(player);
+                
 
                 const card = document.createElement('div');
                 card.className = 'player-card';
@@ -1275,15 +1270,13 @@
                     ? `<img src="${escapeHtml(photo)}" alt="${escapeHtml(name)}" loading="lazy" onerror="if(!this.dataset.tried && '${pDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${pDriveId}&sz=w300';}else{this.parentElement.innerHTML='${initials}';}">`
                     : initials;
 
-                const clubBadgeHtml = club
-                    ? `<span class="club-badge ${club}" title="${club === 'home' ? 'Home' : 'Away'}">${clubIcon(club)}</span>`
-                    : '';
+                const clubBadgeHtml = playerClassificationHtml(player, 'player-role-tag');
 
                 card.innerHTML = `
-                    ${clubBadgeHtml}
                     <span class="player-number">#${index + 1}</span>
                     <div class="player-avatar">${avatarContent}</div>
                     <div class="player-name">${escapeHtml(name)}</div>
+                    ${clubBadgeHtml}
                     ${role ? `<span class="player-role-tag">${escapeHtml(role)}</span>` : ''}
                 `;
                 card.addEventListener('click', () => openModal(player, index));
@@ -1311,11 +1304,9 @@
 
             // Set name, role tag, and club badge
             document.getElementById('modalName').textContent = name;
-            const club = getPlayerClub(player);
+            
             const roleTag = document.getElementById('modalRoleTag');
-            const clubModalHtml = club
-                ? `<span class="club-badge-modal ${club}">${clubIcon(club)} ${club === 'home' ? 'Home' : 'Away'}</span>`
-                : '';
+            const clubModalHtml = playerClassificationHtml(player, 'club-badge-modal');
             roleTag.innerHTML = (role ? `<span class="modal-player-role">${escapeHtml(role)}</span>` : '') + clubModalHtml;
 
             const body = document.getElementById('modalBody');
@@ -1323,7 +1314,7 @@
 
             // Separate fields into regular info, batting stats, bowling stats
             const allFields = headers
-                .filter(h => !isNameField(h) && !isPhotoField(h) && !isHiddenField(h) && !isClubField(h))
+                .filter(h => !isNameField(h) && !isPhotoField(h) && !isHiddenField(h) && !isClubField(h) && !/^(player)?base(price|value)$/i.test(h.replace(/[\s_-]/g, '')))
                 .map(h => ({ header: h, value: player[h], ...getFieldInfo(h) }));
 
             const regularFields = allFields.filter(f => !isStatField(f.header)).sort((a, b) => a.priority - b.priority);
@@ -1592,6 +1583,7 @@
                     if (evData) {
                         const raw = Array.isArray(evData) ? evData : Object.values(evData);
                         availableEvents = raw.filter(isEventActive);
+                        if (allPlayers.length) applyFilters();
                         const sel = document.getElementById('eventFilterSelect');
                         if (sel) {
                             sel.innerHTML = '<option value="">All Live Events</option>' + availableEvents.map(e => `

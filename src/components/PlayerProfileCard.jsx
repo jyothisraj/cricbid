@@ -1,3 +1,4 @@
+import PlayerCategories from './PlayerCategories';
 import React from 'react';
 import ImageWithFallback from './ImageWithFallback';
 import { formatNum } from '../services/api';
@@ -29,23 +30,19 @@ function getField(p, ...keys) {
   return '';
 }
 
-export default function PlayerProfileCard({ player, liveData = {}, isSpectator = false }) {
+export default function PlayerProfileCard({ player, tournament, liveData = {}, isSpectator = false, onEnlargePhoto }) {
   if (!player) return null;
 
   const name = getField(player, 'Name', 'name', 'playerName') || 'Unknown Player';
   const rawPhoto = getField(player, 'Photo', 'photoUrl', 'photo', 'image');
-  const club = getField(player, 'Club', 'club').toLowerCase();
+  const { affiliation, club, categories } = window.PlayerCategories.classify(player, tournament);
   const battingProfile = getField(player, 'Batting Profile', 'battingProfile', 'Batting Style', 'role');
   const battingPosition = getField(player, 'Batting position', 'battingPosition', 'Batting Position', 'batting order');
   const bowlingProfile = getField(player, 'Bowling Profile', 'bowlingProfile', 'Bowling Style');
   const isWk = getField(player, 'Are you a wicket keeper?', 'wicketKeeper', 'Wicket Keeper', 'keeper').toLowerCase() === 'yes';
 
   // Base price
-  const basePriceVal = parseFloat(
-    liveData.baseValue ||
-    getField(player, 'BasePrice', 'Base Price', 'basePrice', 'Ticket Price', 'price') ||
-    10000
-  );
+  const basePriceVal = window.PlayerPricing.resolve(player, tournament, liveData.baseValue);
 
   // Batting Stats
   const matches = getField(player, 'Matches', 'matches') || '0';
@@ -70,6 +67,8 @@ export default function PlayerProfileCard({ player, liveData = {}, isSpectator =
   const badges = Array.isArray(player.badges) ? player.badges : [];
 
   const photoSize = isSpectator ? '140px' : '110px';
+  const largePhoto = Boolean(onEnlargePhoto && rawPhoto);
+  const PhotoFrame = largePhoto ? 'button' : 'div';
   const nameSize = isSpectator ? '2rem' : '1.5rem';
 
   return (
@@ -83,9 +82,15 @@ export default function PlayerProfileCard({ player, liveData = {}, isSpectator =
     }}>
       {/* Top Section: Photo + Core Info */}
       <div style={{ display: 'flex', gap: '22px', flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: '20px' }}>
-        <div style={{
-          width: photoSize,
-          height: photoSize,
+        <PhotoFrame
+          type={largePhoto ? 'button' : undefined}
+          aria-label={largePhoto ? `Enlarge photo of ${name}` : undefined}
+          onClick={largePhoto ? () => onEnlargePhoto(rawPhoto) : undefined}
+          style={{
+          padding: 0,
+          cursor: largePhoto ? 'zoom-in' : undefined,
+          width: largePhoto ? 'min(480px, 100%)' : photoSize,
+          height: largePhoto ? 'min(480px, 60vh)' : photoSize,
           borderRadius: '16px',
           overflow: 'hidden',
           background: '#0F172A',
@@ -96,10 +101,11 @@ export default function PlayerProfileCard({ player, liveData = {}, isSpectator =
           <ImageWithFallback
             src={rawPhoto}
             alt={name}
-            size="w600"
+            size={largePhoto ? 'w1200' : 'w600'}
+            style={largePhoto ? { objectFit: 'contain' } : undefined}
             fontSize={isSpectator ? '2.4rem' : '1.8rem'}
           />
-        </div>
+        </PhotoFrame>
 
         <div style={{ flex: 1, minWidth: '220px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
@@ -122,11 +128,7 @@ export default function PlayerProfileCard({ player, liveData = {}, isSpectator =
 
           {/* Badges Row */}
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
-            {club && (
-              <span className={`badge ${club === 'home' ? 'badge-live' : 'badge-event'}`} style={{ fontSize: isSpectator ? '0.84rem' : '0.78rem' }}>
-                {club === 'home' ? '🏠 Home Club' : '✈️ Away Club'}
-              </span>
-            )}
+            {(affiliation || club) && <span className="badge badge-event">{affiliation || club}</span>}
             {battingProfile && (
               <span className="badge badge-event" style={{ fontSize: isSpectator ? '0.84rem' : '0.78rem' }}>
                 🏏 {battingProfile}
@@ -148,6 +150,8 @@ export default function PlayerProfileCard({ player, liveData = {}, isSpectator =
               </span>
             ))}
           </div>
+
+          <PlayerCategories categories={categories} />
 
           {/* Sub-info */}
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: isSpectator ? '0.9rem' : '0.85rem', color: 'var(--slate-400)' }}>

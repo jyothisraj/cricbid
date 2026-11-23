@@ -1061,6 +1061,9 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="/bid-levels.js"></script>
+    <script src="/player-pricing.js"></script>
+    <script src="/player-categories.js"></script>
 </head>
 <body>
 
@@ -1234,9 +1237,18 @@ function parseEventCodeFromUrl() {
     return 'ESL2026';
 }
 
+function offlineTeamView() {
+    return availableEvents.some(e => e.eventCode === currentEventCode && e.auctionMode === 'offline');
+}
+
+function showOfflineSpectator() {
+    if (offlineTeamView()) location.replace(`public-dashboard.html?event=${encodeURIComponent(currentEventCode)}`);
+}
+
 function onLoginEventChange(val) {
     if (!val) return;
     currentEventCode = val.toUpperCase();
+    showOfflineSpectator();
     const url = new URL(window.location);
     url.searchParams.set('event', currentEventCode);
     window.history.replaceState({}, '', url);
@@ -1338,6 +1350,8 @@ function attachFirebaseListeners() {
             }
             renderLoginEventOptions();
             renderMyPurse(cachedTeamsData);
+            if (currentLiveData?.status === 'bidding') renderLiveBanner(currentLiveData);
+            renderMySquad(cachedSoldList);
         }
     });
 
@@ -1532,14 +1546,14 @@ function enableAllBidButtons() {
 
         // MAX BID button
         if (amtAttr === 'max') {
-            btn.disabled = isMyBid || maxBid <= currentBid || timedOut || teamBlocked;
+            btn.disabled = noBidYet || isMyBid || maxBid <= currentBid || timedOut || teamBlocked;
             return;
         }
 
         // Regular bid buttons
         const amt = parseInt(amtAttr) || 0;
         const newBid = currentBid + amt;
-        let disabledBtn = isMyBid || newBid > maxBid || timedOut || teamBlocked;
+        let disabledBtn = noBidYet || isMyBid || newBid > maxBid || timedOut || teamBlocked;
         btn.disabled = disabledBtn;
     });
 }
@@ -1553,8 +1567,33 @@ function refreshBidSection() {
 }
 
 // ===================== BIDDING =====================
-function placeBid(amount) {
-    if (!db || !loggedInTeam || !currentLiveData) return;
+async function recordTeamBid(evPath, expectedPlayer, amount, opening, kind) {
+    const name = player => player?.name || player?.Name;
+    const team = loggedInTeam.teamName;
+    const result = await db.ref(evPath + '/live').transaction(live => {
+        if (!live?.currentPlayer || name(live.currentPlayer) !== name(expectedPlayer) ||
+            live.status !== 'bidding' || live.auctionMode === 'offline' ||
+            Boolean(live.currentBidder) === opening || live.currentBidder === team) return;
+        if (opening ? amount !== (Number(live.baseValue) || MIN_PLAYER_VALUE) : amount <= Number(live.currentBid)) return;
+        const minimum = BidLevels.minimum(Number(live.currentBid), live.bidLevels);
+        if (kind === 'raise' && amount !== minimum) return;
+        if (kind === 'custom' && !BidLevels.validCustom(amount, minimum, Infinity)) return;
+        return { ...live, currentBid: amount, currentBidder: team };
+    }, undefined, false);
+    if (result.committed && evPath === 'auctions/ESL2026') {
+        await db.ref('eslAuction/live').update({currentBid: amount, currentBidder: team});
+    }
+}
+
+function placeCustomBid() {
+    const live = currentLiveData;
+    if (!live?.currentBidder) return;
+    const current = Number(live.currentBid);
+    const amount = BidLevels.ask(BidLevels.minimum(current, live.bidLevels), calcMaxBid(cachedTeamsData));
+    if (amount !== null) placeBid(amount, true);
+}
+function placeBid(amount, custom = false) {
+    if (!db || !loggedInTeam || !currentLiveData || offlineTeamView() || currentLiveData.auctionMode === 'offline') return;
     if (currentLiveData.status !== 'bidding') return;
     if (timedOut) return;
     // Check if this team is disabled by admin
@@ -1566,8 +1605,9 @@ function placeBid(amount) {
 
     const baseValue = parseFloat(currentLiveData.baseValue) || MIN_PLAYER_VALUE;
     const currentBid = currentLiveData.currentBidder ? (parseFloat(currentLiveData.currentBid) || baseValue) : baseValue;
-    const newBid = currentBid + amount;
+    const newBid = custom ? amount : currentBid + amount;
 
+    const expectedPlayer = currentLiveData.currentPlayer;
     const evPath = `auctions/${currentEventCode}`;
     db.ref(`${evPath}/teams`).once('value', async snap => {
         let teamsData = snap.val();
@@ -1595,17 +1635,12 @@ function placeBid(amount) {
             return;
         }
 
-        db.ref(`${evPath}/live/currentBid`).set(newBid);
-        db.ref(`${evPath}/live/currentBidder`).set(loggedInTeam.teamName);
-        if (currentEventCode === 'ESL2026') {
-            db.ref('eslAuction/live/currentBid').set(newBid);
-            db.ref('eslAuction/live/currentBidder').set(loggedInTeam.teamName);
-        }
+        await recordTeamBid(evPath, expectedPlayer, newBid, false, custom ? "custom" : "raise");
     });
 }
 
 function placePick() {
-    if (!db || !loggedInTeam || !currentLiveData) return;
+    if (!db || !loggedInTeam || !currentLiveData || offlineTeamView() || currentLiveData.auctionMode === 'offline') return;
     if (currentLiveData.status !== 'bidding') return;
     if (timedOut) return;
     // Check if this team is disabled by admin
@@ -1616,6 +1651,7 @@ function placePick() {
     }
 
     const baseValue = parseFloat(currentLiveData.baseValue) || MIN_PLAYER_VALUE;
+    const expectedPlayer = currentLiveData.currentPlayer;
     const evPath = `auctions/${currentEventCode}`;
 
     // Fresh read to avoid race conditions — check no one else picked
@@ -1645,17 +1681,7 @@ function placePick() {
                 return;
             }
 
-            // Use update() to set both atomically
-            db.ref(`${evPath}/live`).update({
-                currentBid: baseValue,
-                currentBidder: loggedInTeam.teamName
-            });
-            if (currentEventCode === 'ESL2026') {
-                db.ref('eslAuction/live').update({
-                    currentBid: baseValue,
-                    currentBidder: loggedInTeam.teamName
-                });
-            }
+            await recordTeamBid(evPath, expectedPlayer, baseValue, true);
         });
     });
 }
@@ -1666,7 +1692,7 @@ function bidBasePrice() {
 }
 
 function confirmMaxBid() {
-    if (!db || !loggedInTeam || !currentLiveData) return;
+    if (!db || !loggedInTeam || !currentLiveData || offlineTeamView() || currentLiveData.auctionMode === 'offline') return;
     if (currentLiveData.status !== 'bidding' || timedOut) return;
     const disabled = currentLiveData.disabledTeams || [];
     if (disabled.includes(loggedInTeam.teamName)) {
@@ -1687,19 +1713,15 @@ function closeMaxBidConfirm() {
 
 function executeMaxBid() {
     closeMaxBidConfirm();
-    if (!db || !loggedInTeam || !currentLiveData) return;
+    if (!db || !loggedInTeam || !currentLiveData || offlineTeamView() || currentLiveData.auctionMode === 'offline') return;
     if (currentLiveData.status !== 'bidding' || timedOut) return;
 
     const maxBid = calcMaxBid(cachedTeamsData);
     if (maxBid <= 0) return;
 
+    const expectedPlayer = currentLiveData.currentPlayer;
     const evPath = `auctions/${currentEventCode}`;
-    db.ref(`${evPath}/live/currentBid`).set(maxBid);
-    db.ref(`${evPath}/live/currentBidder`).set(loggedInTeam.teamName);
-    if (currentEventCode === 'ESL2026') {
-        db.ref('eslAuction/live/currentBid').set(maxBid);
-        db.ref('eslAuction/live/currentBidder').set(loggedInTeam.teamName);
-    }
+    return recordTeamBid(evPath, expectedPlayer, maxBid, false);
 }
 
 function getMySquadSize() {
@@ -1740,6 +1762,7 @@ function calcMaxBid(teamsData) {
 
 // ===================== LOGIN =====================
 function doLogin() {
+    if (offlineTeamView()) return showOfflineSpectator();
     const username = document.getElementById('loginUser').value.trim();
     const password = document.getElementById('loginPass').value.trim();
     const errorEl = document.getElementById('loginError');
@@ -1920,7 +1943,7 @@ function renderLiveBanner(data) {
         const pickDisabled = !noBidYet || timedOut || teamBlockedInit;
 
         // Multiple bid buttons: 1000, 2000, 5000, 10000
-        const bidAmounts = [1000, 2000, 5000, 10000];
+        const bidAmounts = [BidLevels.minimum(currentBid, data.bidLevels) - currentBid];
         const bidButtonsHtml = bidAmounts.map(amt => {
             const newBid = currentBid + amt;
             let disabled = noBidYet || isMyBid || newBid > maxBid || timedOut || teamBlockedInit;
@@ -1958,6 +1981,7 @@ function renderLiveBanner(data) {
                 ${bidHtml}
                 <div class="bid-buttons-row">
                     ${bidButtonsHtml}
+                    <button class="bid-btn" data-amount="custom" onclick="placeCustomBid()" ${isMyBid || timedOut || teamBlockedInit ? 'disabled' : ''}>Custom bid</button>
                 </div>
                 <div class="bid-buttons-row" style="margin-top:8px;">${maxBidBtnHtml}</div>
                 ${maxBidHtml}
@@ -2111,14 +2135,12 @@ function renderMySquad(soldList) {
         mySquad.innerHTML = squadItems.map(item => {
             const sp = findSheetPlayer(item.name);
             const photo = sp ? _getPhoto(sp) : null;
-            const club = sp ? _getClub(sp) : null;
             const initials = getInitials(item.name);
             const pDriveId = getDriveFileId(photo);
             const avatarHtml = photo
                 ? `<img src="${esc(photo)}" alt="${esc(item.name)}" onerror="if(!this.dataset.tried && '${pDriveId}'){this.dataset.tried='1';this.src='https://drive.google.com/thumbnail?id=${pDriveId}&sz=w300';}else{this.parentElement.innerHTML='${initials}';}">`
                 : initials;
-            const clubHtml = club === 'home' ? `<span class="squad-card-club" style="color:#2ecc71;">&#127968;</span>`
-                : club === 'away' ? `<span class="squad-card-club" style="color:#5dade2;">&#9992;&#65039;</span>` : '';
+            const clubHtml = sp ? PlayerCategories.badges(sp, availableEvents.find(event => event.eventCode === currentEventCode), esc) : '';
             const tagHtml = item.tag ? `<span style="font-size:0.7rem;padding:2px 8px;border-radius:4px;background:rgba(245,158,11,0.15);color:#d4a843;font-weight:600;margin-left:6px;">${item.tag}</span>` : '';
 
             return `<div class="squad-player-card" onclick="openTvPlayerModal('${esc(item.name).replace(/'/g, "\\'")}')">
@@ -2400,34 +2422,6 @@ function _getPhoto(player) {
     return null;
 }
 
-function _getClub(player) {
-    for (const h of sheetHeaders) {
-        if (_isClub(h) && player[h]) {
-            const v = player[h].trim().toLowerCase();
-            if (v === 'home' || v === 'away') return v;
-        }
-    }
-    return null;
-}
-
-function _getClub(player) {
-    if (player.club) {
-        const v = String(player.club).trim().toLowerCase();
-        if (v === 'home' || v === 'away') return v;
-    }
-    if (player.Club) {
-        const v = String(player.Club).trim().toLowerCase();
-        if (v === 'home' || v === 'away') return v;
-    }
-    for (const h of sheetHeaders) {
-        if (_isClub(h) && player[h]) {
-            const v = String(player[h]).trim().toLowerCase();
-            if (v === 'home' || v === 'away') return v;
-        }
-    }
-    return null;
-}
-
 function _getRole(player) {
     if (player.role) return player.role;
     for (const [h, v] of Object.entries(player)) {
@@ -2462,17 +2456,12 @@ function buildPlayerDetailHtml(player) {
     const name = _getField(player, 'Name', 'name', 'playerName') || 'Unknown Player';
     const initials = getInitials(name);
     const photo = _getField(player, 'Photo', 'photoUrl', 'photo', 'image');
-    const club = _getField(player, 'Club', 'club').toLowerCase();
     const battingProfile = _getField(player, 'Batting Profile', 'battingProfile', 'Batting Style', 'role');
     const battingPosition = _getField(player, 'Batting position', 'battingPosition', 'Batting Position', 'batting order');
     const bowlingProfile = _getField(player, 'Bowling Profile', 'bowlingProfile', 'Bowling Style');
     const isWk = _getField(player, 'Are you a wicket keeper?', 'wicketKeeper', 'Wicket Keeper', 'keeper').toLowerCase() === 'yes';
 
-    const baseVal = parseFloat(
-        player.baseValue ||
-        _getField(player, 'BasePrice', 'Base Price', 'basePrice', 'Ticket Price', 'price') ||
-        MIN_PLAYER_VALUE || 10000
-    );
+    const baseVal = PlayerPricing.resolve(player, availableEvents.find(e => e.eventCode === currentEventCode), MIN_PLAYER_VALUE);
 
     // Batting stats
     const matches = _getField(player, 'Matches', 'matches') || '0';
@@ -2497,8 +2486,7 @@ function buildPlayerDetailHtml(player) {
     // Badges
     let badgesHtml = '';
     if (baseVal > 0) badgesHtml += `<span class="pdl-badge" style="background:rgba(212,168,67,0.18);color:var(--bright-gold);border:1px solid rgba(212,168,67,0.35);font-weight:700;">💰 Base: ${formatNum(baseVal)}</span>`;
-    if (club === 'home') badgesHtml += `<span class="pdl-badge pdl-badge-home">&#127968; Home Club</span>`;
-    else if (club === 'away') badgesHtml += `<span class="pdl-badge pdl-badge-away">&#9992;&#65039; Away Club</span>`;
+    badgesHtml += PlayerCategories.badges(player, availableEvents.find(event => event.eventCode === currentEventCode), esc);
     if (battingProfile) badgesHtml += `<span class="pdl-badge pdl-badge-role">🏏 ${esc(battingProfile)}</span>`;
     if (bowlingProfile && bowlingProfile.toLowerCase() !== 'none') badgesHtml += `<span class="pdl-badge" style="background:#FDF2F8;color:#DB2777;border:1px solid #FBCFE8;">🎯 ${esc(bowlingProfile)}</span>`;
     if (isWk) badgesHtml += `<span class="pdl-badge" style="background:#FFFBEB;color:#D97706;border:1px solid #FDE68A;">🧤 Wicket Keeper</span>`;
@@ -2577,7 +2565,6 @@ function openTvPlayerModal(playerName) {
     const initials = getInitials(name);
     const photo = _getPhoto(player);
     const role = _getRole(player);
-    const club = _getClub(player);
 
     // Photo side
     const modalPhoto = document.getElementById('tvModalPhoto');
@@ -2592,8 +2579,7 @@ function openTvPlayerModal(playerName) {
     const details = document.getElementById('tvModalDetails');
     let badgesHtml = '';
     if (role) badgesHtml += `<span class="pdl-badge pdl-badge-role">${esc(role)}</span>`;
-    if (club === 'home') badgesHtml += `<span class="pdl-badge pdl-badge-home">&#127968; Home</span>`;
-    if (club === 'away') badgesHtml += `<span class="pdl-badge pdl-badge-away">&#9992;&#65039; Away</span>`;
+    badgesHtml += PlayerCategories.badges(player, availableEvents.find(event => event.eventCode === currentEventCode), esc);
 
     const regularFields = [];
     const battingFields = [];
@@ -2705,6 +2691,7 @@ function renderLoginEventOptions() {
     `).join('');
 
     evSelect.value = currentEventCode;
+    showOfflineSpectator();
 }
 
 // ===================== INIT =====================

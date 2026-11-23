@@ -10,7 +10,7 @@ import {
 import ImageWithFallback from '../components/ImageWithFallback';
 import PlayerProfileCard from '../components/PlayerProfileCard';
 
-export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
+export default function PublicDashboard({ eventCode = 'ESL2026', tournament, onNavigate, offline = false }) {
   const currentEvent = (eventCode || 'ESL2026').toUpperCase();
 
   const [liveData, setLiveData] = useState(null);
@@ -27,7 +27,7 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
     let unsubPlayers = () => {};
 
     listenLiveAuction(currentEvent, data => setLiveData(data)).then(u => { unsubLive = u; });
-    listenTimer(currentEvent, data => setTimerData(data)).then(u => { unsubTimer = u; });
+    if (!offline) listenTimer(currentEvent, data => setTimerData(data)).then(u => { unsubTimer = u; });
     listenTeams(currentEvent, list => setTeams(list)).then(u => { unsubTeams = u; });
     listenAuctionLog(currentEvent, log => setAuctionLog(log)).then(u => { unsubLog = u; });
     listenPlayers(currentEvent, list => setAllPlayers(list)).then(u => { unsubPlayers = u; });
@@ -39,12 +39,12 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
       unsubLog();
       unsubPlayers();
     };
-  }, [currentEvent]);
+  }, [currentEvent, offline]);
 
   const [secondsLeft, setSecondsLeft] = useState(30);
 
   useEffect(() => {
-    if (!timerData) {
+    if (offline || !timerData) {
       setSecondsLeft(30);
       return;
     }
@@ -67,7 +67,7 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
         : (timerData.timeLeft !== undefined ? timerData.timeLeft : (timerData.totalSeconds || 30)));
       setSecondsLeft(rem !== undefined ? rem : 30);
     }
-  }, [timerData]);
+  }, [timerData, offline]);
 
   const cp = liveData?.currentPlayer;
   const cpName = ((cp && (cp.Name || cp.name)) || '').trim().toLowerCase();
@@ -208,7 +208,7 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
             <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--slate-400)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               CURRENT BIDDING SPOTLIGHT
             </span>
-            <span className={`badge ${secondsLeft <= 5 && timerData?.running ? 'badge-urgent' : 'badge-live'}`} style={{
+            {!offline && <span className={`badge ${secondsLeft <= 5 && timerData?.running ? 'badge-urgent' : 'badge-live'}`} style={{
               fontSize: '1.1rem',
               padding: '6px 16px',
               fontWeight: 800,
@@ -217,12 +217,12 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
               borderColor: secondsLeft <= 5 && timerData?.running ? 'rgba(239, 68, 68, 0.5)' : undefined
             }}>
               ⏱️ {secondsLeft}s {!timerData?.running ? '(Ready)' : ''}
-            </span>
+            </span>}
           </div>
 
           {cp ? (
             <div>
-              <PlayerProfileCard player={mergedPlayer} liveData={liveData} isSpectator={true} />
+              <PlayerProfileCard tournament={tournament} player={mergedPlayer} liveData={liveData} isSpectator={true} />
 
               {/* Price Banner */}
               <div style={{
@@ -239,7 +239,7 @@ export default function PublicDashboard({ eventCode = 'ESL2026', onNavigate }) {
                 <div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>CURRENT HIGHEST BID</div>
                   <div style={{ fontSize: '2.8rem', fontFamily: 'Outfit', fontWeight: 900, color: '#F59E0B' }}>
-                    {formatNum(liveData.currentBid || liveData.baseValue || 10000)}
+                    {formatNum(Number(liveData.currentBid) || window.PlayerPricing.resolve(mergedPlayer, tournament, liveData.baseValue))}
                   </div>
                 </div>
 
