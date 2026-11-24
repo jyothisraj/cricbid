@@ -421,10 +421,10 @@
             vertical-align: middle;
         }
 
-        /* ---- Auction 3-Column Layout ---- */
+        /* ---- Live auction layout ---- */
         .auction-3col {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
             gap: 20px;
             min-height: 520px;
         }
@@ -598,6 +598,7 @@
 
         /* Col 3: Teams status */
         .auction-col-teams {
+            grid-column: 1 / -1;
             overflow-y: auto;
         }
         .auction-team-row {
@@ -921,9 +922,13 @@
         .toast.error { background: var(--red); color: white; }
 
         /* Responsive */
-        @media (max-width: 1100px) {
-            .auction-3col { grid-template-columns: 1fr 1fr; }
-            .auction-col-teams { grid-column: 1 / -1; }
+        @media (min-width: 769px) {
+            .auction-col-teams .auction-team-row { display: flex; align-items: center; gap: 16px; overflow-x: auto; }
+            .auction-col-teams .auction-team-header { margin: 0; flex: 0 0 auto; }
+            .auction-col-teams .auction-team-stats { flex: 1; grid-auto-flow: column; grid-template-columns: none; grid-auto-columns: minmax(75px, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .auction-col-teams .auction-team-header { flex-wrap: wrap; }
         }
         @media (max-width: 768px) {
             .auction-3col { grid-template-columns: 1fr; }
