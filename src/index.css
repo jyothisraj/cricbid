@@ -300,3 +300,10 @@ label {
   margin: 8px 0;
 }
 .player-categories strong { font-size: .8rem; color: var(--slate-400); }
+.career-editor { width: min(720px, 94%); margin: 32px auto; padding: clamp(16px, 4vw, 32px); }
+.career-editor fieldset { border: 0; padding: 0; min-width: 0; }
+.career-editor label { display: grid; gap: 5px; margin: 10px 0; }
+.career-editor input, .career-editor select { padding: 10px; min-width: 0; font: inherit; border-radius: 6px; border: 1px solid var(--border-subtle); }
+.career-editor section > div { display: grid; gap: 0 14px; grid-template-columns: repeat(auto-fit,minmax(min(150px,100%),1fr)); }
+.career-editor section { margin: 16px 0; }
+.career-editor button { margin: 8px 8px 0 0; }

@@ -1200,6 +1200,15 @@ function buildPlayerDetailHtml(player) {
             </div>
         </div>
     `;
+    const fieldingRecordHtml = `
+        <div class="pdl-stats-group">
+            <div class="pdl-stats-header"><span>&#129508;</span> Fielding Record</div>
+            <div class="pdl-stats-tiles" style="grid-template-columns: repeat(2, 1fr);">
+                <div class="pdl-stat-tile"><div class="pdl-stat-icon">&#129508;</div><div class="pdl-stat-value" style="color:#059669;">${esc(_getField(player, 'Catches') || '0')}</div><div class="pdl-stat-label">Catches</div></div>
+                <div class="pdl-stat-tile"><div class="pdl-stat-icon">&#128201;</div><div class="pdl-stat-value" style="color:#0F766E;">${esc(_getField(player, 'Runouts', 'Run Outs', 'Run-outs') || '0')}</div><div class="pdl-stat-label">Runouts</div></div>
+            </div>
+        </div>
+    `;
 
     // Photo HTML
     const pDriveId = getDriveFileId(photo);
@@ -1216,6 +1225,7 @@ function buildPlayerDetailHtml(player) {
                 ${subInfoHtml}
                 ${battingRecordHtml}
                 ${bowlingRecordHtml}
+                ${fieldingRecordHtml}
             </div>
             <div class="player-detail-photo">${photoHtml}</div>
         </div>

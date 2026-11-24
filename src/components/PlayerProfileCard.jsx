@@ -1,7 +1,7 @@
 import PlayerCategories from './PlayerCategories';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import ImageWithFallback from './ImageWithFallback';
-import { formatNum } from '../services/api';
+import { formatNum, getConfig } from '../services/api';
 
 function getField(p, ...keys) {
   if (!p) return '';
@@ -30,7 +30,59 @@ function getField(p, ...keys) {
   return '';
 }
 
-export default function PlayerProfileCard({ player, tournament, liveData = {}, isSpectator = false, onEnlargePhoto }) {
+const statAliases = {
+  Matches: ['Matches'], Runs: ['Runs'], "100's": ["100's",'hundreds'],
+  "50's": ["50's",'fifties'], "30's": ["30's",'thirties'],
+  SR: ['SR','Strike Rate'], Avg: ['Avg','Average','Batting Avg','Batting Average'],
+  Wickets: ['Wickets'], '5 Wkts': ['5 Wkts','5 wickets','fiveWickets'],
+  '3 Wkts': ['3 Wkts','3 wickets','threeWickets'], Economy: ['Economy','Econ','Economy Rate'],
+  Catches: ['Catches'], Runouts: ['Runouts','Run Outs']
+};
+
+function useCareerStats(player, eventCode) {
+  const name = getField(player,'Name','Player Name','Player').toLowerCase();
+  const booking = getField(player,'Booking ID','id');
+  const identity = JSON.stringify([eventCode,name,booking]);
+  const [saved,setSaved] = useState(null);
+  const rosterStats = Object.fromEntries(Object.entries(statAliases).map(([field,aliases]) => [field,getField(player,...aliases)]));
+  const version = JSON.stringify(rosterStats);
+  useEffect(() => {
+    if (!name || !eventCode) return;
+    const controller = new AbortController();
+    async function refresh() {
+      try {
+        const config = await getConfig();
+        if (!config.apps_script_url || controller.signal.aborted) return;
+        const url = new URL(config.apps_script_url);
+        url.searchParams.set('action','getPlayers');
+        url.searchParams.set('eventCode',eventCode);
+        const response = await fetch(url,{cache:'no-store',signal:controller.signal});
+        const {players} = await response.json();
+        const matches = (players || []).filter(row =>
+          (getField(row,'Event Code','Event') || 'ESL2026').toUpperCase() === eventCode &&
+          getField(row,'Name','Player Name','Player').toLowerCase() === name &&
+          (!booking || getField(row,'Booking ID','id') === booking));
+        if (matches.length !== 1 || controller.signal.aborted) return;
+        const stats = {};
+        for (const [field,aliases] of Object.entries(statAliases)) {
+          const normalize = key => key.toLowerCase().replace(/[\s_'-]/g,'');
+          const keys = aliases.map(normalize);
+          if (Object.keys(matches[0]).some(key => keys.includes(normalize(key)))) stats[field] = getField(matches[0],...aliases);
+        }
+        setSaved({identity,version,stats});
+      } catch (error) {
+        if (!controller.signal.aborted) console.warn('Could not refresh career statistics',error);
+      }
+    }
+    refresh();
+    window.addEventListener('focus',refresh);
+    return () => { controller.abort(); window.removeEventListener('focus',refresh); };
+  }, [identity,version,name,booking,eventCode]);
+  return saved?.identity === identity && saved.version === version ? {...rosterStats,...saved.stats} : rosterStats;
+}
+
+export default function PlayerProfileCard({ player, eventCode, tournament, liveData = {}, isSpectator = false, onEnlargePhoto }) {
+  const stats = useCareerStats(player,eventCode);
   if (!player) return null;
 
   const name = getField(player, 'Name', 'name', 'playerName') || 'Unknown Player';
@@ -44,20 +96,8 @@ export default function PlayerProfileCard({ player, tournament, liveData = {}, i
   // Base price
   const basePriceVal = window.PlayerPricing.resolve(player, tournament, liveData.baseValue);
 
-  // Batting Stats
-  const matches = getField(player, 'Matches', 'matches') || '0';
-  const runs = getField(player, 'Runs', 'runs') || '0';
-  const hundreds = getField(player, "100's", '100s', 'hundreds') || '0';
-  const fifties = getField(player, "50's", '50s', 'fifties') || '0';
-  const thirties = getField(player, "30's", '30s', 'thirties') || '0';
-  const sr = getField(player, 'SR', 'Strike Rate', 'sr') || '-';
-  const avg = getField(player, 'Avg', 'Average', 'avg') || '-';
-
-  // Bowling Stats
-  const wickets = getField(player, 'Wickets', 'wickets') || '0';
-  const fiveWkts = getField(player, '5 Wkts', '5wkts', '5 wickets', 'fiveWickets') || '0';
-  const threeWkts = getField(player, '3 Wkts', '3wkts', '3 wickets') || '0';
-  const economy = getField(player, 'Economy', 'economy', 'Econ', 'economyRate') || '-';
+  const { Matches: matches, Runs: runs, "100's": hundreds, "50's": fifties, "30's": thirties,
+    SR: sr, Avg: avg, Wickets: wickets, '5 Wkts': fiveWkts, '3 Wkts': threeWkts, Economy: economy } = stats;
 
   // Extra details
   const age = getField(player, 'Age', 'age');
@@ -204,41 +244,49 @@ export default function PlayerProfileCard({ player, tournament, liveData = {}, i
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
             <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '8px 6px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: isSpectator ? '1.2rem' : '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>{matches}</div>
+              <div style={{ fontSize: isSpectator ? '1.2rem' : '1.05rem', fontWeight: 800, color: '#FFFFFF' }}>{matches || '0'}</div>
               <div style={{ fontSize: '0.65rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>Matches</div>
             </div>
             <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '8px 6px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: isSpectator ? '1.2rem' : '1.05rem', fontWeight: 800, color: '#38BDF8' }}>{runs}</div>
+              <div style={{ fontSize: isSpectator ? '1.2rem' : '1.05rem', fontWeight: 800, color: '#38BDF8' }}>{runs || '0'}</div>
               <div style={{ fontSize: '0.65rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>Runs</div>
             </div>
             <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '8px 6px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: isSpectator ? '1.2rem' : '1.05rem', fontWeight: 800, color: '#FCD34D' }}>{sr}</div>
+              <div style={{ fontSize: isSpectator ? '1.2rem' : '1.05rem', fontWeight: 800, color: '#FCD34D' }}>{sr || '-'}</div>
               <div style={{ fontSize: '0.65rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>SR</div>
             </div>
             <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '8px 6px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: isSpectator ? '1.2rem' : '1.05rem', fontWeight: 800, color: '#4ADE80' }}>{avg}</div>
+              <div style={{ fontSize: isSpectator ? '1.2rem' : '1.05rem', fontWeight: 800, color: '#4ADE80' }}>{avg || '-'}</div>
               <div style={{ fontSize: '0.65rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>Avg</div>
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '8px' }}>
             <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '6px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#F59E0B' }}>{hundreds}</div>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#F59E0B' }}>{hundreds || '0'}</div>
               <div style={{ fontSize: '0.65rem', color: 'var(--slate-400)' }}>100s</div>
             </div>
             <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '6px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#F59E0B' }}>{fifties}</div>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#F59E0B' }}>{fifties || '0'}</div>
               <div style={{ fontSize: '0.65rem', color: 'var(--slate-400)' }}>50s</div>
             </div>
             <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '6px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#F59E0B' }}>{thirties}</div>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#F59E0B' }}>{thirties || '0'}</div>
               <div style={{ fontSize: '0.65rem', color: 'var(--slate-400)' }}>30s</div>
             </div>
           </div>
         </div>
 
-        {/* Bowling Record */}
-        <div style={{
+        {[
+          { title: 'Bowling Record', icon: '🎯', accent: '#F472B6', tiles: [
+            ['Wkts', wickets || '0', '#FB7185'], ['Econ', economy || '-', '#A78BFA'],
+            ['5 Wkts', fiveWkts || '0', '#EF4444'], ['3 Wkts', threeWkts || '0', '#F97316']
+          ] },
+          { title: 'Fielding Record', icon: '🧤', accent: '#6EE7B7', tiles: [
+            ['Catches', stats.Catches || '0', '#34D399'], ['Runouts', stats.Runouts || '0', '#5EEAD4']
+          ] }
+        ].map(({ title, icon, accent, tiles }) => (
+        <div key={title} style={{
           background: 'rgba(30, 41, 59, 0.45)',
           borderRadius: '12px',
           border: '1px solid var(--border-subtle)',
@@ -249,34 +297,25 @@ export default function PlayerProfileCard({ player, tournament, liveData = {}, i
             fontWeight: 700,
             textTransform: 'uppercase',
             letterSpacing: '0.5px',
-            color: '#F472B6',
+            color: accent,
             marginBottom: '10px',
             display: 'flex',
             alignItems: 'center',
             gap: '6px'
           }}>
-            <span>🎯</span> Bowling Record
+            <span aria-hidden="true">{icon}</span> {title}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-            <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '8px 6px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: isSpectator ? '1.2rem' : '1.05rem', fontWeight: 800, color: '#FB7185' }}>{wickets}</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>Wkts</div>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${tiles.length}, minmax(0, 1fr))`, gap: '8px' }}>
+            {tiles.map(([label, value, color]) => (
+            <div key={label} style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '8px 6px', borderRadius: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: isSpectator ? '1.2rem' : '1.05rem', fontWeight: 800, color }}>{value}</div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>{label}</div>
             </div>
-            <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '8px 6px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: isSpectator ? '1.2rem' : '1.05rem', fontWeight: 800, color: '#A78BFA' }}>{economy}</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>Econ</div>
-            </div>
-            <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '8px 6px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: isSpectator ? '1.2rem' : '1.05rem', fontWeight: 800, color: '#EF4444' }}>{fiveWkts}</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>5 Wkts</div>
-            </div>
-            <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '8px 6px', borderRadius: '8px', textAlign: 'center' }}>
-              <div style={{ fontSize: isSpectator ? '1.2rem' : '1.05rem', fontWeight: 800, color: '#F97316' }}>{threeWkts}</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--slate-400)', textTransform: 'uppercase' }}>3 Wkts</div>
-            </div>
+            ))}
           </div>
         </div>
+        ))}
       </div>
     </div>
   );

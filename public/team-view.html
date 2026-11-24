@@ -2535,6 +2535,15 @@ function buildPlayerDetailHtml(player) {
             </div>
         </div>
     `;
+    const fieldingRecordHtml = `
+        <div class="pdl-stats-group">
+            <div class="pdl-stats-header"><span>&#129508;</span> Fielding Record</div>
+            <div class="pdl-stats-tiles" style="grid-template-columns: repeat(2, 1fr);">
+                <div class="pdl-stat-tile"><div class="pdl-stat-icon">&#129508;</div><div class="pdl-stat-value" style="color:#059669;">${esc(_getField(player, 'Catches') || '0')}</div><div class="pdl-stat-label">Catches</div></div>
+                <div class="pdl-stat-tile"><div class="pdl-stat-icon">&#128201;</div><div class="pdl-stat-value" style="color:#0F766E;">${esc(_getField(player, 'Runouts', 'Run Outs', 'Run-outs') || '0')}</div><div class="pdl-stat-label">Runouts</div></div>
+            </div>
+        </div>
+    `;
 
     // Photo side
     const pDriveId = getDriveFileId(photo);
@@ -2551,6 +2560,7 @@ function buildPlayerDetailHtml(player) {
                 ${subInfoHtml}
                 ${battingRecordHtml}
                 ${bowlingRecordHtml}
+                ${fieldingRecordHtml}
             </div>
             <div class="player-detail-photo">${photoHtml}</div>
         </div>
@@ -2584,6 +2594,7 @@ function openTvPlayerModal(playerName) {
     const regularFields = [];
     const battingFields = [];
     const bowlingFields = [];
+    const fieldingFields = [];
     sheetHeaders.forEach(h => {
         if (_isName(h) || _isPhoto(h) || _isHidden(h) || _isClub(h)) return;
         const val = player[h];
@@ -2591,6 +2602,7 @@ function openTvPlayerModal(playerName) {
         const entry = { header: h, value: val, icon: _icon(h) };
         if (_isBat(h)) battingFields.push(entry);
         else if (_isBowl(h)) bowlingFields.push(entry);
+        else if (/^(catches|run[\s_-]*outs?)$/i.test(h.trim())) fieldingFields.push(entry);
         else regularFields.push(entry);
     });
 
@@ -2610,6 +2622,10 @@ function openTvPlayerModal(playerName) {
     if (bowlingFields.length > 0) {
         html += `<div class="pdl-stats-group"><div class="pdl-stats-header"><span>&#127936;</span> Bowling Record</div>
             <div class="pdl-stats-tiles">${bowlingFields.map(f => `<div class="pdl-stat-tile"><div class="pdl-stat-icon">${f.icon}</div><div class="pdl-stat-value">${esc(f.value)}</div><div class="pdl-stat-label">${esc(f.header)}</div></div>`).join('')}</div></div>`;
+    }
+    if (fieldingFields.length > 0) {
+        html += `<div class="pdl-stats-group"><div class="pdl-stats-header"><span>&#129508;</span> Fielding Record</div>
+            <div class="pdl-stats-tiles">${fieldingFields.map(f => `<div class="pdl-stat-tile"><div class="pdl-stat-icon">${f.icon}</div><div class="pdl-stat-value">${esc(f.value)}</div><div class="pdl-stat-label">${esc(f.header)}</div></div>`).join('')}</div></div>`;
     }
 
     details.innerHTML = html;

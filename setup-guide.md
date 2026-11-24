@@ -158,3 +158,7 @@ To build the production bundle:
 ```bash
 npm run build
 ```
+
+### Player career statistics updates
+
+Share `/player/EVENTCODE` with registered players. Anyone holding a booking ID can edit career statistics for matching registrations in that event. Shared bookings offer a profile selector. Store booking IDs as text to preserve leading zeros. Deploy the updated Apps Script web app and frontend together. Editing sessions expire after 15 minutes.

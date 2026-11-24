@@ -182,6 +182,10 @@ function doPost(e) {
 
   try {
     switch (action) {
+      case 'lookupCareerBooking':
+      case 'saveCareerStats':
+        result = playerCareerRequest(data);
+        break;
       // Event operations
       case 'addEvent':
         result = addEvent(data);
@@ -1028,6 +1032,7 @@ function ensurePlayerProfileColumns(sheet, data) {
     .map(h => String(h).toLowerCase().replace(/[\s_-]/g, ''));
   for (const [label, aliases] of [
     ['Base Price', ['baseprice', 'basevalue']],
+    ...careerFields.map(([label, ...aliases]) => [label, [label, ...aliases].map(careerKey)]),
     ['Age', ['age']],
     ['Cricketing Profile', ['cricketingprofile', 'cricketprofile', 'playingrole', 'playerrole', 'role']]
   ]) {
@@ -1087,6 +1092,9 @@ function addPlayer(data) {
   setVal(['3wkts', '3wickets'], data.threeWickets || data['3 Wkts'] || '');
   setVal(['economy', 'econ'], data.economy || '');
 
+  for (const [label, ...aliases] of careerFields) {
+    if (data[label] !== undefined) setVal([label, ...aliases].map(careerKey), data[label]);
+  }
   sheet.appendRow(row);
   return { success: true, message: 'Player added successfully', player: data };
 }
@@ -1160,6 +1168,9 @@ function updatePlayer(data) {
   if (data.threeWickets !== undefined || data['3 Wkts'] !== undefined) setCell(['3wkts', '3wickets'], data.threeWickets || data['3 Wkts']);
   if (data.economy !== undefined) setCell(['economy', 'econ'], data.economy);
 
+  for (const [label, ...aliases] of careerFields) {
+    if (data[label] !== undefined) setCell([label, ...aliases].map(careerKey), data[label]);
+  }
   return { success: true, message: 'Player updated successfully', player: data };
 }
 
@@ -1500,4 +1511,67 @@ function trashFilesByNamePattern(folder, regex) {
       f.setTrashed(true);
     }
   }
+}
+
+const careerFields = [
+  ['Matches'], ['Runs'], ["100's", '100s', 'hundreds'], ["50's", '50s', 'fifties'],
+  ["30's", '30s', 'thirties'], ['SR', 'Strike Rate'], ['Avg', 'Batting Avg', 'Average'],
+  ['Wickets'], ['5 Wkts', '5 Wickets'], ['3 Wkts', '3 Wickets'], ['Economy', 'Econ'],
+  ['Catches'], ['Runouts', 'Run Outs']
+];
+function careerKey(key) { return String(key).toLowerCase().replace(/[\s_-]/g, ''); }
+function playerCareerRequest(data) {
+  const event = String(data.eventCode || '').trim().toUpperCase();
+  if (!/^[A-Z0-9_-]+$/.test(event)) throw Error('Invalid event.');
+  const cache = CacheService.getScriptCache();
+  const saving = data.action === 'saveCareerStats';
+  const session = saving && JSON.parse(cache.get('career:' + String(data.session).slice(0,80)) || 'null');
+  if (saving && (!session || session.event !== event)) throw Error('Session expired. Enter your booking ID again.');
+  const bookingId = String((saving ? session.bookingId : data.bookingId) || '').trim();
+  if (!bookingId || bookingId.length > 150) throw Error('Enter a valid booking ID.');
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Attendee List') || ss.getSheetByName('AttendeeList') || ss.getSheetByName('Players') || ss.getSheets()[0];
+  const lock = LockService.getScriptLock();
+  if (saving) lock.waitLock(10000);
+  try {
+    const [headers, ...rows] = sheet.getDataRange().getDisplayValues();
+    const keys = headers.map(careerKey);
+    const col = (...aliases) => keys.findIndex(key => aliases.map(careerKey).includes(key));
+    const profiles = [];
+    rows.forEach((row, index) => {
+      if ((String(row[col('eventcode','event')] || 'ESL2026').trim().toUpperCase()) !== event ||
+          String(row[col('bookingid','id')] || '').trim() !== bookingId) return;
+      const name = row[col('name','playername','player')];
+      const booking = row[col('bookingid','id')] || '';
+      const stats = {};
+      careerFields.forEach(([label,...aliases]) => { stats[label] = row[col(label,...aliases)] || ''; });
+      profiles.push({id: JSON.stringify([index+2,name,booking]), name, booking, stats, row: index+2});
+    });
+    if (!saving) {
+      if (!profiles.length) throw Error('No registration matches this booking ID for this event.');
+      const token = Utilities.getUuid() + Utilities.getUuid();
+      cache.put('career:' + token,JSON.stringify({event,bookingId,ids:profiles.map(p=>p.id)}),900);
+      return {session:token,profiles:profiles.map(({row,...profile})=>profile)};
+    }
+    const profile = profiles.find(p => p.id === data.profileId && session.ids.includes(p.id));
+    if (!profile) throw Error('Registration changed. Enter your booking ID again.');
+    const fields = Object.entries(data.stats || {});
+    if (!fields.length) throw Error('Choose a statistic to update.');
+    for (const [key,value] of fields) {
+      const decimal = ['SR','Avg','Economy'].includes(key);
+      if (!careerFields.some(([label])=>label===key) || typeof value !== 'string' ||
+          value.length > 15 || (value !== '' && !(decimal ? /^\d+(\.\d+)?$/ : /^\d+$/).test(value))) throw Error('Invalid career statistic.');
+    }
+    for (const [key,value] of fields) {
+      const aliases = careerFields.find(([label]) => label === key);
+      let index = col(...aliases);
+      if (index < 0) {
+        index = sheet.getLastColumn();
+        sheet.getRange(1,index+1).setValue(key);
+        keys.push(careerKey(key));
+      }
+      sheet.getRange(profile.row,index+1).setValue(value === '' ? '' : Number(value));
+    }
+    return {success:true};
+  } finally { if (saving) lock.releaseLock(); }
 }

@@ -5838,7 +5838,24 @@ function buildAdminPlayerDetailHtml(player) {
 
     // Fields
     const regular = [], batting = [], bowling = [];
+    const fieldLabel = key => {
+        const normalized = key.toLowerCase().replace(/[^a-z]/g, '');
+        if (normalized === 'catches') return 'Catches';
+        if (normalized === 'runout' || normalized === 'runouts') return 'Runouts';
+        return '';
+    };
+    const values = new Map();
+    for (const source of [player.details || {}, player]) {
+        for (const [key, value] of Object.entries(source)) {
+            const label = fieldLabel(key);
+            if (label && value != null && String(value).trim() !== '') values.set(label, String(value));
+        }
+    }
+    const fielding = ['Catches', 'Runouts'].map(header => ({
+        header, value: values.get(header) ?? '0', icon: header === 'Catches' ? '&#129508;' : '&#127919;'
+    }));
     playerHeaders.forEach(h => {
+        if (fieldLabel(h)) return;
         if (isNameField(h) || isPhotoField(h) || _isHidden(h) || _isClub(h)) return;
         const val = player[h];
         if (!val || !val.trim()) return;
@@ -5851,6 +5868,7 @@ function buildAdminPlayerDetailHtml(player) {
     let infoHtml = regular.map(f => `<div class="pdl-info-row"><div class="pdl-info-icon">${f.icon}</div><div><div class="pdl-info-label">${esc(f.header)}</div><div class="pdl-info-value">${esc(f.value)}</div></div></div>`).join('');
     if (batting.length) infoHtml += `<div class="pdl-stats-group"><div class="pdl-stats-header"><span>&#127951;</span> Batting Record</div><div class="pdl-stats-tiles">${batting.map(f => `<div class="pdl-stat-tile"><div class="pdl-stat-icon">${f.icon}</div><div class="pdl-stat-value">${esc(f.value)}</div><div class="pdl-stat-label">${esc(f.header)}</div></div>`).join('')}</div></div>`;
     if (bowling.length) infoHtml += `<div class="pdl-stats-group"><div class="pdl-stats-header"><span>&#127936;</span> Bowling Record</div><div class="pdl-stats-tiles">${bowling.map(f => `<div class="pdl-stat-tile"><div class="pdl-stat-icon">${f.icon}</div><div class="pdl-stat-value">${esc(f.value)}</div><div class="pdl-stat-label">${esc(f.header)}</div></div>`).join('')}</div></div>`;
+    infoHtml += `<div class="pdl-stats-group"><div class="pdl-stats-header"><span>&#129508;</span> Fielding Record</div><div class="pdl-stats-tiles">${fielding.map(f => `<div class="pdl-stat-tile"><div class="pdl-stat-icon">${f.icon}</div><div class="pdl-stat-value">${esc(f.value)}</div><div class="pdl-stat-label">${esc(f.header)}</div></div>`).join('')}</div></div>`;
 
     return `
         <div class="admin-player-layout">

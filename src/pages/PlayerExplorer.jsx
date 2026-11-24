@@ -716,7 +716,7 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', tournament, onNa
               </button>
             </div>
             {/* Render full PlayerProfileCard with stats */}
-            <PlayerProfileCard 
+            <PlayerProfileCard eventCode={currentEvent} 
               tournament={tournament}
               onEnlargePhoto={src => setSelectedPhoto(formatImageUrl(src))}
               player={selectedPlayer} 

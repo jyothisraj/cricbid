@@ -222,7 +222,7 @@ export default function PublicDashboard({ eventCode = 'ESL2026', tournament, onN
 
           {cp ? (
             <div>
-              <PlayerProfileCard tournament={tournament} player={mergedPlayer} liveData={liveData} isSpectator={true} />
+              <PlayerProfileCard eventCode={currentEvent} tournament={tournament} player={mergedPlayer} liveData={liveData} isSpectator={true} />
 
               {/* Price Banner */}
               <div style={{

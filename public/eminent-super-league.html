@@ -1126,8 +1126,10 @@
             return bowlingStatKeys.some(k => key === k);
         }
 
+        function isFieldingStat(h) { return /^(catches|run[\s_-]*outs?)$/i.test(h.trim()); }
+
         function isStatField(header) {
-            return isBattingStat(header) || isBowlingStat(header);
+            return isBattingStat(header) || isBowlingStat(header) || isFieldingStat(header);
         }
 
         function getDriveFileId(url) {
@@ -1320,6 +1322,7 @@
             const regularFields = allFields.filter(f => !isStatField(f.header)).sort((a, b) => a.priority - b.priority);
             const battingFields = allFields.filter(f => isBattingStat(f.header)).sort((a, b) => a.priority - b.priority);
             const bowlingFields = allFields.filter(f => isBowlingStat(f.header)).sort((a, b) => a.priority - b.priority);
+            const fieldingFields = allFields.filter(f => isFieldingStat(f.header)).sort((a, b) => a.priority - b.priority);
 
             // Render regular info rows
             const infoGrid = document.createElement('div');
@@ -1374,6 +1377,28 @@
                     </div>
                     <div class="stats-tiles">
                         ${bowlingWithValues.map(f => `
+                            <div class="stat-tile">
+                                <div class="stat-tile-icon">${f.icon}</div>
+                                <div class="stat-tile-value">${escapeHtml(f.value)}</div>
+                                <div class="stat-tile-label">${escapeHtml(f.header)}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                body.appendChild(group);
+            }
+            // Render Fielding Record group
+            const fieldingWithValues = fieldingFields.filter(f => f.value && f.value.trim());
+            if (fieldingWithValues.length > 0) {
+                const group = document.createElement('div');
+                group.className = 'stats-group';
+                group.innerHTML = `
+                    <div class="stats-group-header">
+                        <span class="stats-group-header-icon">&#129508;</span>
+                        <span class="stats-group-header-title">Fielding Record</span>
+                    </div>
+                    <div class="stats-tiles">
+                        ${fieldingWithValues.map(f => `
                             <div class="stat-tile">
                                 <div class="stat-tile-icon">${f.icon}</div>
                                 <div class="stat-tile-value">${escapeHtml(f.value)}</div>

@@ -1355,7 +1355,7 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>No. of Owners (optional)</label>
-                        <input type="number" id="ef_maxOwners" value="1" placeholder="1" min="1" />
+                        <input type="number" id="ef_maxOwners" value="1" placeholder="1" min="0" />
                         <span style="font-size:0.75rem;color:var(--slate-400);">Max owner players allowed per team in this tournament</span>
                     </div>
                     <div class="form-group">
@@ -1771,18 +1771,28 @@
                 </div>
                 <div id="playerStatsSection" style="display:none;">
                     <div class="form-row">
-                        <div class="form-group"><label>Matches</label><input type="number" id="pf_matches" placeholder="0" /></div>
-                        <div class="form-group"><label>Runs</label><input type="number" id="pf_runs" placeholder="0" /></div>
-                        <div class="form-group"><label>100s</label><input type="number" id="pf_hundreds" placeholder="0" /></div>
-                        <div class="form-group"><label>50s</label><input type="number" id="pf_fifties" placeholder="0" /></div>
-                        <div class="form-group"><label>30s</label><input type="number" id="pf_thirties" placeholder="0" /></div>
+                        <div class="form-group"><label for="pf_matches">Matches</label><input type="number" id="pf_matches" min="0" step="1" placeholder="0" /></div>
                     </div>
-                    <div class="form-row" style="margin-top:10px;">
-                        <div class="form-group"><label>Strike Rate</label><input type="text" id="pf_sr" placeholder="e.g. 135.5" /></div>
-                        <div class="form-group"><label>Batting Avg</label><input type="text" id="pf_avg" placeholder="e.g. 32.4" /></div>
-                        <div class="form-group"><label>Wickets</label><input type="number" id="pf_wickets" placeholder="0" /></div>
-                        <div class="form-group"><label>5 Wkts</label><input type="number" id="pf_fiveWickets" placeholder="0" /></div>
-                        <div class="form-group"><label>Economy</label><input type="text" id="pf_economy" placeholder="e.g. 7.2" /></div>
+                    <h4>Batting</h4>
+                    <div class="form-row">
+                        <div class="form-group"><label for="pf_runs">Runs</label><input type="number" id="pf_runs" min="0" step="1" placeholder="0" /></div>
+                        <div class="form-group"><label for="pf_hundreds">100s</label><input type="number" id="pf_hundreds" min="0" step="1" placeholder="0" /></div>
+                        <div class="form-group"><label for="pf_fifties">50s</label><input type="number" id="pf_fifties" min="0" step="1" placeholder="0" /></div>
+                        <div class="form-group"><label for="pf_thirties">30s</label><input type="number" id="pf_thirties" min="0" step="1" placeholder="0" /></div>
+                        <div class="form-group"><label for="pf_sr">Strike Rate</label><input type="number" id="pf_sr" min="0" step="any" placeholder="0" /></div>
+                        <div class="form-group"><label for="pf_avg">Batting Avg</label><input type="number" id="pf_avg" min="0" step="any" placeholder="0" /></div>
+                    </div>
+                    <h4>Bowling</h4>
+                    <div class="form-row">
+                        <div class="form-group"><label for="pf_wickets">Wickets</label><input type="number" id="pf_wickets" min="0" step="1" placeholder="0" /></div>
+                        <div class="form-group"><label for="pf_fiveWickets">5 Wkts</label><input type="number" id="pf_fiveWickets" min="0" step="1" placeholder="0" /></div>
+                        <div class="form-group"><label for="pf_threeWickets">3 Wkts</label><input type="number" id="pf_threeWickets" min="0" step="1" placeholder="0" /></div>
+                        <div class="form-group"><label for="pf_economy">Economy</label><input type="number" id="pf_economy" min="0" step="any" placeholder="0" /></div>
+                    </div>
+                    <h4>Fielding</h4>
+                    <div class="form-row">
+                        <div class="form-group"><label for="pf_catches">Catches</label><input type="number" id="pf_catches" min="0" step="1" placeholder="0" /></div>
+                        <div class="form-group"><label for="pf_runouts">Runouts</label><input type="number" id="pf_runouts" min="0" step="1" placeholder="0" /></div>
                     </div>
                 </div>
             </div>
@@ -2940,6 +2950,11 @@ function addCategoryEditor(rule = {}) {
     document.getElementById('eventCategories').append(card);
 }
 
+function readOwnerLimit(inputId, fallback = 1) {
+    const value = document.getElementById(inputId)?.valueAsNumber;
+    return Number.isInteger(value) && value >= 0 ? value : fallback;
+}
+
 function addBidLevel(level = {}) {
     const row = document.createElement('div');
     row.className = 'form-row';
@@ -3161,7 +3176,7 @@ async function addEvent() {
     const t = parseInt(document.getElementById('ef_timer').value) || 30;
     const minP = parseInt(document.getElementById('ef_minPlayerValue').value) || 10000;
     const inc = parseInt(document.getElementById('ef_timerIncrement').value) || 10;
-    const maxOwners = parseInt(document.getElementById('ef_maxOwners')?.value) || 1;
+    const maxOwners = readOwnerLimit('ef_maxOwners');
     const maxIcon = parseInt(document.getElementById('ef_maxIconPlayers')?.value) || 0;
     const maxRetained = parseInt(document.getElementById('ef_maxRetainedPlayers')?.value) || 0;
 
@@ -3245,7 +3260,7 @@ async function saveEditEvent() {
     const t = parseInt(document.getElementById('ef_timer').value) || 30;
     const minP = parseInt(document.getElementById('ef_minPlayerValue').value) || 10000;
     const inc = parseInt(document.getElementById('ef_timerIncrement').value) || 10;
-    const maxOwners = parseInt(document.getElementById('ef_maxOwners')?.value) || 1;
+    const maxOwners = readOwnerLimit('ef_maxOwners');
     const maxIcon = parseInt(document.getElementById('ef_maxIconPlayers')?.value) || 0;
     const maxRetained = parseInt(document.getElementById('ef_maxRetainedPlayers')?.value) || 0;
     const bannerInput = document.getElementById('ef_banner');
@@ -5036,6 +5051,9 @@ function showAddPlayerView() {
     document.getElementById('pf_avg').value = '';
     document.getElementById('pf_wickets').value = '';
     document.getElementById('pf_fiveWickets').value = '';
+    document.getElementById('pf_threeWickets').value = '';
+    document.getElementById('pf_catches').value = '';
+    document.getElementById('pf_runouts').value = '';
     document.getElementById('pf_economy').value = '';
 
     renderPlayerEventSelectors();
@@ -5114,6 +5132,9 @@ function showEditPlayerView(playerName, evCode) {
     document.getElementById('pf_avg').value = player.Avg || player.avg || '';
     document.getElementById('pf_wickets').value = player.Wickets || player.wickets || '';
     document.getElementById('pf_fiveWickets').value = player['5 Wkts'] || player.fiveWickets || '';
+    document.getElementById('pf_threeWickets').value = player['3 Wkts'] ?? player.threeWickets ?? '';
+    document.getElementById('pf_catches').value = player['Catches'] ?? player.catches ?? '';
+    document.getElementById('pf_runouts').value = player['Runouts'] ?? player.runouts ?? '';
     document.getElementById('pf_economy').value = player.Economy || player.economy || '';
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -5507,6 +5528,9 @@ async function addPlayer() {
         Avg: avg || '0',
         Wickets: wickets || '0',
         '5 Wkts': fiveWickets || '0',
+        '3 Wkts': document.getElementById('pf_threeWickets').value || '0',
+        'Catches': document.getElementById('pf_catches').value || '0',
+        'Runouts': document.getElementById('pf_runouts').value || '0',
         Economy: economy || '0'
     };
 
@@ -5614,6 +5638,9 @@ async function saveEditPlayer() {
         Avg: avg || '0',
         Wickets: wickets || '0',
         '5 Wkts': fiveWickets || '0',
+        '3 Wkts': document.getElementById('pf_threeWickets').value || '0',
+        'Catches': document.getElementById('pf_catches').value || '0',
+        'Runouts': document.getElementById('pf_runouts').value || '0',
         Economy: economy || '0'
     });
 
@@ -5785,7 +5812,7 @@ async function saveEventSettings() {
     const t = parseInt(document.getElementById('es_timer').value) || 30;
     const minP = parseInt(document.getElementById('es_minPlayerValue').value) || 10000;
     const inc = parseInt(document.getElementById('es_timerIncrement').value) || 10;
-    const mo = parseInt(document.getElementById('es_maxOwners')?.value) || ev.maxOwners || 1;
+    const mo = readOwnerLimit('es_maxOwners', ev.maxOwners ?? 1);
 
     ev.budget = b;
     ev.maxPlayers = mp;
@@ -6738,7 +6765,24 @@ function buildAdminPlayerDetailHtml(player) {
 
     // Fields
     const regular = [], batting = [], bowling = [];
+    const fieldLabel = key => {
+        const normalized = key.toLowerCase().replace(/[^a-z]/g, '');
+        if (normalized === 'catches') return 'Catches';
+        if (normalized === 'runout' || normalized === 'runouts') return 'Runouts';
+        return '';
+    };
+    const values = new Map();
+    for (const source of [player.details || {}, player]) {
+        for (const [key, value] of Object.entries(source)) {
+            const label = fieldLabel(key);
+            if (label && value != null && String(value).trim() !== '') values.set(label, String(value));
+        }
+    }
+    const fielding = ['Catches', 'Runouts'].map(header => ({
+        header, value: values.get(header) ?? '0', icon: header === 'Catches' ? '&#129508;' : '&#127919;'
+    }));
     playerHeaders.forEach(h => {
+        if (fieldLabel(h)) return;
         if (isNameField(h) || isPhotoField(h) || _isHidden(h) || _isClub(h)) return;
         const val = player[h];
         if (val == null || !String(val).trim()) return;
@@ -6751,6 +6795,7 @@ function buildAdminPlayerDetailHtml(player) {
     let infoHtml = regular.map(f => `<div class="pdl-info-row"><div class="pdl-info-icon">${f.icon}</div><div><div class="pdl-info-label">${esc(f.header)}</div><div class="pdl-info-value">${esc(f.value)}</div></div></div>`).join('');
     if (batting.length) infoHtml += `<div class="pdl-stats-group"><div class="pdl-stats-header"><span>&#127951;</span> Batting Record</div><div class="pdl-stats-tiles">${batting.map(f => `<div class="pdl-stat-tile"><div class="pdl-stat-icon">${f.icon}</div><div class="pdl-stat-value">${esc(f.value)}</div><div class="pdl-stat-label">${esc(f.header)}</div></div>`).join('')}</div></div>`;
     if (bowling.length) infoHtml += `<div class="pdl-stats-group"><div class="pdl-stats-header"><span>&#127936;</span> Bowling Record</div><div class="pdl-stats-tiles">${bowling.map(f => `<div class="pdl-stat-tile"><div class="pdl-stat-icon">${f.icon}</div><div class="pdl-stat-value">${esc(f.value)}</div><div class="pdl-stat-label">${esc(f.header)}</div></div>`).join('')}</div></div>`;
+    infoHtml += `<div class="pdl-stats-group"><div class="pdl-stats-header"><span>&#129508;</span> Fielding Record</div><div class="pdl-stats-tiles">${fielding.map(f => `<div class="pdl-stat-tile"><div class="pdl-stat-icon">${f.icon}</div><div class="pdl-stat-value">${esc(f.value)}</div><div class="pdl-stat-label">${esc(f.header)}</div></div>`).join('')}</div></div>`;
 
     return `
         <div class="admin-player-layout">

@@ -3,6 +3,7 @@ import TournamentHub from './pages/TournamentHub';
 import TeamLogin from './pages/TeamLogin';
 import PublicDashboard from './pages/PublicDashboard';
 import PlayerExplorer from './pages/PlayerExplorer';
+import PlayerStatsEditor from './pages/PlayerStatsEditor';
 import Admin from './pages/Admin';
 import { getDb } from './services/api';
 
@@ -105,6 +106,8 @@ export default function App() {
     pageContent = <AuctionScreen key={paramEventCode} teamView eventCode={paramEventCode} onNavigate={navigate} />;
   } else if (route === 'spectator' || route === 'public-dashboard' || route === 'dashboard') {
     pageContent = <AuctionScreen key={paramEventCode} eventCode={paramEventCode} onNavigate={navigate} />;
+  } else if (route === 'player' && segments[1]) {
+    pageContent = <PlayerStatsEditor key={paramEventCode} eventCode={paramEventCode.toUpperCase()} />;
   } else if (route === 'players') {
     pageContent = <AuctionScreen key={paramEventCode} playersView eventCode={paramEventCode} onNavigate={navigate} />;
   } else if (route === 'admin') {

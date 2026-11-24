@@ -417,7 +417,7 @@ export default function TeamLogin({ eventCode = 'ESL2026', tournament, onNavigat
           {cp ? (
             <div>
               {/* Complete Player Profile Card */}
-              <PlayerProfileCard tournament={tournament} player={mergedPlayer} liveData={liveData} />
+              <PlayerProfileCard eventCode={currentEvent} tournament={tournament} player={mergedPlayer} liveData={liveData} />
 
               {/* Bidding Info & Controls */}
               {(() => {
