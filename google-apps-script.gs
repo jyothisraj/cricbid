@@ -182,6 +182,9 @@ function doPost(e) {
 
   try {
     switch (action) {
+      case 'importPlayers':
+        result = importPlayers(data);
+        break;
       case 'lookupCareerBooking':
       case 'saveCareerStats':
         result = playerCareerRequest(data);
@@ -290,6 +293,7 @@ function getEvents() {
       eventContacts: String(row[6] || '').trim(),
       bannerUrl: String(row[7] || '').trim(),
       status: String(row[8] || 'Active').trim(),
+      cutoffDate: formatDate(row[data[0].indexOf('Cutoff Date')] || ''),
       hostClub: String(row[hostColumn] || '').trim(),
       ...readOpenRoundOrder(row[data[0].indexOf('Open Round Order')]),
       playerCategories: readPlayerCategories(row[categoriesColumn]),
@@ -360,6 +364,7 @@ function addEvent(data) {
   ];
   while (row.length < modeColumn) row.push('');
   row[modeColumn - 1] = data.auctionMode === 'offline' ? 'offline' : 'online';
+  row[eventColumn(sheet, 'Cutoff Date') - 1] = data.cutoffDate || '';
   row[eventColumn(sheet, 'Host Club') - 1] = String(data.hostClub || '').trim();
   row[eventColumn(sheet, 'Open Round Order') - 1] = JSON.stringify(data.openRoundOrder || {});
   row[eventColumn(sheet, 'Player Categories') - 1] = JSON.stringify(data.playerCategories || []);
@@ -385,6 +390,7 @@ function updateEvent(data) {
       if (data.eventContacts !== undefined) sheet.getRange(rowIdx, 7).setValue(data.eventContacts);
       if (data.bannerUrl !== undefined) sheet.getRange(rowIdx, 8).setValue(data.bannerUrl);
       if (data.status !== undefined) sheet.getRange(rowIdx, 9).setValue(data.status);
+      if (data.cutoffDate !== undefined) sheet.getRange(rowIdx,eventColumn(sheet,'Cutoff Date')).setValue(data.cutoffDate);
       if (data.hostClub !== undefined) sheet.getRange(rowIdx, eventColumn(sheet, 'Host Club')).setValue(String(data.hostClub).trim());
       if (data.openRoundOrder !== undefined) sheet.getRange(rowIdx, eventColumn(sheet, 'Open Round Order')).setValue(JSON.stringify(data.openRoundOrder));
       if (data.playerCategories !== undefined) {
@@ -1017,7 +1023,7 @@ function getPlayers(eventCode) {
     }
 
     headers.forEach((h, idx) => {
-      const val = row[idx] !== null && row[idx] !== undefined ? String(row[idx]) : '';
+      const val = row[idx] !== null && row[idx] !== undefined ? (row[idx] instanceof Date ? formatDate(row[idx]) : String(row[idx])) : '';
       player[h] = val;
       if (val.trim()) hasData = true;
     });
@@ -1034,6 +1040,8 @@ function ensurePlayerProfileColumns(sheet, data) {
     ['Base Price', ['baseprice', 'basevalue']],
     ...careerFields.map(([label, ...aliases]) => [label, [label, ...aliases].map(careerKey)]),
     ['Age', ['age']],
+    ['Player Category',['playercategory','category']],
+    ['Date of Birth',['dateofbirth','dob','birthdate']],
     ['Cricketing Profile', ['cricketingprofile', 'cricketprofile', 'playingrole', 'playerrole', 'role']]
   ]) {
     if ((data[label] || (label === 'Base Price' && Number(data.basePrice) > 0)) && !aliases.some(key => headers.includes(key))) {
@@ -1066,8 +1074,10 @@ function addPlayer(data) {
 
   setVal(['eventcode', 'event'], (data.eventCode || 'ESL2026').trim().toUpperCase());
   setVal(['name', 'playername', 'player'], data.name || data.playerName || '');
-  setVal(['club', 'clubname', 'cricketclub', 'category'], data.club ?? data.category ?? '');
+  setVal(['club', 'clubname', 'cricketclub'], data.club ?? data.category ?? '');
   setVal(['age'], data.Age);
+  setVal(['playercategory','category'], data['Player Category']);
+  setVal(['dateofbirth','dob','birthdate'], data['Date of Birth']);
   setVal(['cricketingprofile', 'cricketprofile', 'playingrole', 'playerrole', 'role'], data['Cricketing Profile']);
   setVal(['mobilenumber', 'mobile', 'phone'], data.mobileNumber || data.mobile || '');
   setVal(['ticketname', 'ticket'], data.ticketName || 'PLAYER REGISTRATION');
@@ -1143,8 +1153,10 @@ function updatePlayer(data) {
 
   if (data.name || data.playerName) setCell(['name', 'playername', 'player'], data.name || data.playerName);
   if (data.eventCode) setCell(['eventcode', 'event'], data.eventCode.trim().toUpperCase());
-  setCell(['club', 'clubname', 'cricketclub', 'category'], data.club ?? data.category);
+  setCell(['club', 'clubname', 'cricketclub'], data.club ?? data.category);
   setCell(['age'], data.Age);
+  setCell(['playercategory','category'], data['Player Category']);
+  setCell(['dateofbirth','dob','birthdate'], data['Date of Birth']);
   setCell(['cricketingprofile', 'cricketprofile', 'playingrole', 'playerrole', 'role'], data['Cricketing Profile']);
   if (data.mobileNumber || data.mobile) setCell(['mobilenumber', 'mobile', 'phone'], data.mobileNumber || data.mobile);
   if (data.ticketName) setCell(['ticketname', 'ticket'], data.ticketName);
@@ -1574,4 +1586,159 @@ function playerCareerRequest(data) {
     }
     return {success:true};
   } finally { if (saving) lock.releaseLock(); }
+}
+
+function readImportFile(filename, encoded) {
+  const ext = String(filename).split('.').pop().toLowerCase();
+  const types = {xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', xls:'application/vnd.ms-excel', csv:'text/csv'};
+  if (!Object.hasOwnProperty.call(types, ext)) throw Error('Choose an XLSX, XLS or CSV file.');
+  if (typeof encoded !== 'string' || !encoded || encoded.length > 11184812) throw Error('File is empty or exceeds 8 MB.');
+  const blob = Utilities.newBlob(Utilities.base64Decode(encoded), types[ext], filename);
+  if (ext === 'csv') return Utilities.parseCsv(blob.getDataAsString('UTF-8').replace(/^\uFEFF/, ''));
+  const temp = Drive.Files.create({name:'Player import', mimeType:'application/vnd.google-apps.spreadsheet'}, blob, {fields:'id'});
+  try {
+    const range = SpreadsheetApp.openById(temp.id).getSheets()[0].getDataRange();
+    const rows = range.getDisplayValues();
+    const dob = rows[0].findIndex(h => /^(dob|dateofbirth|birthdate)$/i.test(h.replace(/[\s_-]/g,'')));
+    if (dob >= 0) range.getValues().forEach((row,i) => {
+      if (row[dob] instanceof Date) rows[i][dob] = Utilities.formatDate(row[dob],range.getSheet().getParent().getSpreadsheetTimeZone(),'yyyy-MM-dd');
+    });
+    return rows;
+  } finally {
+    DriveApp.getFileById(temp.id).setTrashed(true);
+  }
+}
+
+function importPlayers(data) {
+  const code = String(data.eventCode || '').trim().toUpperCase();
+  const event = getEvents().events.find(e => e.eventCode === code);
+  if (!event) throw Error('Choose an existing tournament.');
+  const grid = readImportFile(data.filename, data.encoded);
+  const aliases = [
+    ['Name','Player Name','Player'], ['Event Code','Event'], ['Club','Club Name','Cricket Club'],
+    ['Date of Birth','DOB','Birth Date'], ['Player Category','Category'], ['Batting position','Batting Order','Position'],
+    ['Booking ID','ID'], ['Mobile Number','Mobile','Phone'], ['Base Price','Base Value'],
+    ['Cricketing Profile','Role','Player Role'], ['Batting Profile','Batting Style'],
+    ['Bowling Profile','Bowling Style'], ['Are you a wicket keeper?','Wicket Keeper','WK'], ...careerFields
+  ];
+  const normalize = value => String(value || '').trim().toLowerCase().replace(/[\s_'?-]/g,'');
+  const titles = new Map();
+  aliases.forEach(group => group.forEach(alias => titles.set(normalize(alias),group[0])));
+  const canonical = value => titles.get(normalize(value)) || String(value || '').trim();
+  const input = (grid.shift() || []).map(canonical);
+  const named = input.filter(Boolean);
+  if (!input.includes('Booking ID')) throw Error('The first row must include Booking ID.');
+  if (new Set(named.map(normalize)).size !== named.length) throw Error('The file contains duplicate column headings.');
+  if (named.some(h => /[.#$\[\]\/\x00-\x1f]/.test(h) || h.startsWith('=') || ['__proto__','constructor','prototype'].includes(h))) throw Error('One or more column headings are unsupported.');
+  const entries = [];
+  grid.forEach((row,i) => {
+    if (!row.some(v => String(v).trim())) return;
+    const cells = row.map(v => String(v).trim());
+    if (!cells[input.indexOf('Booking ID')]) throw Error('Missing booking ID on row ' + (i+2) + '.');
+    entries.push(cells);
+  });
+  if (!entries.length) throw Error('No player rows found.');
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Attendee List') || ss.getSheetByName('AttendeeList') || ss.getSheetByName('Players') || ss.getSheets()[0];
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const [headers,...existing] = sheet.getDataRange().getDisplayValues();
+    const keys = headers.map(h => normalize(canonical(h)));
+    const oldWidth = headers.length;
+    for (const h of [...named,'Event Code','Name','Age','Cricketing Profile']) {
+      if (!keys.includes(normalize(h))) { headers.push(h); keys.push(normalize(h)); }
+    }
+    const eventCol = keys.indexOf('eventcode'), nameCol = keys.indexOf('name');
+    const idCol = keys.indexOf('bookingid');
+    const known = new Map();
+    existing.forEach((row,index) => {
+      if (String(row[eventCol] || 'ESL2026').trim().toUpperCase() !== code) return;
+      const id = String(row[idCol] || '').trim();
+      if (id) known.set(id, known.has(id) ? null : {row, number:index+2, changes:new Map()});
+    });
+    const additions = [];
+    const affected = new Map();
+    const columns = input.map(h => h ? keys.indexOf(normalize(h)) : -1);
+    for (const cells of entries) {
+      const id = cells[input.indexOf('Booking ID')];
+      if (known.get(id) === null) throw Error('Multiple registrations already use booking ID ' + id + ' in this event.');
+      if (!known.has(id)) {
+        const row = headers.map(() => '');
+        row[eventCol] = code;
+        additions.push(row);
+        known.set(id,{row,number:null,changes:new Map()});
+      }
+      const record = known.get(id);
+      columns.forEach((col,i) => {
+        if (col < 0 || col === eventCol || !cells[i] || record.row[col] === cells[i]) return;
+        record.row[col] = cells[i];
+        record.changes.set(col,cells[i]);
+      });
+      const value = h => record.row[keys.indexOf(normalize(h))] || '';
+      const set = (h,v) => {
+        const col = keys.indexOf(normalize(h));
+        if (col >= 0 && record.row[col] !== v) { record.row[col] = v; record.changes.set(col,v); }
+      };
+      for (const h of ['Batting Profile','Bowling Profile']) if (value(h)) set(h,playerHand(value(h)));
+      const dob = value('Date of Birth');
+      if (dob) {
+        if (!playerDay(dob)) throw Error('Invalid date of birth for booking ' + id + '. Use YYYY-MM-DD or DD/MM/YYYY.');
+        set('Date of Birth', playerDay(dob));
+        set('Age',playerAge(dob,event));
+      }
+      const role = cricketRole(value('Batting position'),value('Batting Profile'),value('Bowling Profile'));
+      if (role) set('Cricketing Profile',role);
+      affected.set(id,record);
+    }
+    for (const [id,record] of affected) {
+      if (!record.row[nameCol]) throw Error('A player name is required for booking ID ' + id + '.');
+    }
+    const literal = v => /^[=']/.test(v) ? "'" + v : v;
+    if (headers.length > sheet.getMaxColumns()) sheet.insertColumnsAfter(sheet.getMaxColumns(),headers.length-sheet.getMaxColumns());
+    if (headers.length > oldWidth) sheet.getRange(1,oldWidth+1,1,headers.length-oldWidth).setValues([headers.slice(oldWidth)]);
+    if (additions.length) {
+      const last = sheet.getLastRow();
+      if (last + additions.length > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(),last+additions.length-sheet.getMaxRows());
+      sheet.getRange(last+1,1,additions.length,headers.length).setNumberFormat('@').setValues(additions.map(row=>row.map(literal)));
+    }
+    let updated = 0;
+    for (const record of affected.values()) {
+      if (!record.number || !record.changes.size) continue;
+      for (const [col,value] of record.changes) {
+        sheet.getRange(record.number,col+1).setNumberFormat('@').setValue(literal(value));
+      }
+      updated++;
+    }
+    SpreadsheetApp.flush();
+    const players = [...affected.values()].map(({row}) => Object.fromEntries(headers.flatMap((h,i)=>h ? [[h,row[i] || '']] : [])));
+    return {success:true,added:additions.length,updated,unchanged:affected.size-additions.length-updated,headers,players};
+  } finally { lock.releaseLock(); }
+}
+
+function playerDay(value) {
+    const text = String(value || '').trim();
+    const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:T.*)?$/.exec(text);
+    const local = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/.exec(text);
+    if (!iso && !local) return '';
+    const [year,month,day] = (iso ? iso.slice(1) : [local[3],local[2],local[1]]).map(Number);
+    const date = new Date(Date.UTC(year,month-1,day));
+    if (date.getUTCMonth() !== month-1 || date.getUTCDate() !== day) return '';
+    return date.toISOString().slice(0,10);
+}
+function playerAge(dob, event) {
+    const born = playerDay(dob);
+    const cutoff = playerDay(event?.cutoffDate || event?.startDate);
+    if (!born || !cutoff || born > cutoff) return '';
+    return String(Number(cutoff.slice(0,4)) - Number(born.slice(0,4)) - Number(cutoff.slice(5) < born.slice(5)));
+}
+function playerHand(value) {
+    return String(value || '').replace(/\bRH\b/gi,'Right Hand').replace(/\bLH\b/gi,'Left Hand');
+}
+function cricketRole(position, batting, bowling) {
+    const order = String(position || batting || '').trim();
+    const bowls = !/^(?:\s*|n\/?a|none|no|not applicable|does not bowl|none\s*\/\s*does not bowl|-)$/i.test(String(bowling || '').trim());
+    if (/\b(?:top|middle)[\s-]*order\b/i.test(order)) return bowls ? 'All Rounder' : 'Batter';
+    if (bowls && /\blower[\s-]*order\b/i.test(order)) return 'Bowler';
+    return '';
 }

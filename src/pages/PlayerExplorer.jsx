@@ -11,44 +11,18 @@ function cleanName(n) {
     .replace(/\s+/g, ' ');
 }
 
+function playerName(p) {
+  return p.Name || p.name || p['Player Name'] || p.playerName || p.Player || '';
+}
+
 function getPlayerRole(p) {
-  const explicitRole = String(p.Role || p.role || p['Player Role'] || p.Category || p['Player Category'] || '').trim().toLowerCase();
-  const isWk = String(p['Are you a wicket keeper?'] || p.wicketKeeper || p['Wicket Keeper'] || '').trim().toLowerCase() === 'yes';
-  const batPos = String(p['Batting position'] || p.battingPosition || '').trim().toLowerCase();
-  const batStyle = String(p['Batting Profile'] || p.battingProfile || '').trim().toLowerCase();
-  const bowlStyle = String(p['Bowling Profile'] || p.bowlingProfile || '').trim().toLowerCase();
-  const hasBowling = bowlStyle && bowlStyle !== 'none' && !bowlStyle.includes('not applicable');
-
-  // 1. Explicit Role or Wicket Keeper
-  if (isWk || explicitRole.includes('wk') || explicitRole.includes('keeper')) {
-    return 'WK';
-  }
-  if (explicitRole.includes('bowler')) {
-    return 'BOWLER';
-  }
-  if (explicitRole.includes('all-rounder') || explicitRole.includes('allrounder')) {
-    return 'ALLROUNDER';
-  }
-  if (explicitRole.includes('batsman') || explicitRole.includes('batter')) {
-    return 'BATSMAN';
-  }
-
-  // 2. Infer from Batting position and Bowling profile
-  if (!hasBowling) {
-    return 'BATSMAN';
-  }
-  if (batPos.includes('lower')) {
-    return 'BOWLER';
-  }
-  if (batPos.includes('top') || batPos.includes('open')) {
-    return 'BATSMAN';
-  }
-  if (batPos.includes('middle')) {
-    return 'ALLROUNDER';
-  }
-
-  // Fallback
-  return hasBowling && batStyle ? 'ALLROUNDER' : (hasBowling ? 'BOWLER' : 'BATSMAN');
+  const role = window.PlayerCategories.fieldValue(p,'Cricketing Profile').toLowerCase().replace(/[ -]/g,'');
+  if (role.includes('keeper')) return 'WK';
+  if (role === 'allrounder') return 'ALLROUNDER';
+  if (role === 'bowler') return 'BOWLER';
+  if (role === 'batter' || role === 'batsman') return 'BATSMAN';
+  if (window.PlayerCategories.fieldValue(p,'Wicket Keeper').toLowerCase() === 'yes') return 'WK';
+  return role.toUpperCase();
 }
 
 export default function PlayerExplorer({ eventCode = 'ESL2026', tournament, onNavigate }) {
@@ -160,7 +134,7 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', tournament, onNa
     let owners = 0;
 
     players.forEach(p => {
-      const cn = cleanName(p.Name || p.name);
+      const cn = cleanName(playerName(p));
       if (soldMap.has(cn)) {
         sold++;
       } else if (unsoldSet.has(cn)) {
@@ -184,11 +158,11 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', tournament, onNa
   // Filtering Logic
   const filtered = useMemo(() => {
     return players.filter(p => {
-      const name = p.Name || p.name || '';
+      const name = playerName(p);
       const cn = cleanName(name);
       const club = (p.Club || p.club || '').toLowerCase();
-      const batStyle = (p['Batting Profile'] || p.battingProfile || '').toLowerCase();
-      const bowlStyle = (p['Bowling Profile'] || p.bowlingProfile || '').toLowerCase();
+      const batStyle = (window.PlayerCategories.fieldValue(p,'Batting Profile')).toLowerCase();
+      const bowlStyle = (window.PlayerCategories.fieldValue(p,'Bowling Profile')).toLowerCase();
       const batPos = (p['Batting position'] || p.battingPosition || '').toLowerCase();
       const isWk = String(p['Are you a wicket keeper?'] || p.wicketKeeper || '').toLowerCase() === 'yes';
 
@@ -239,7 +213,7 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', tournament, onNa
       }
 
       return true;
-    });
+    }).sort((a, b) => window.PlayerCategories.compareNames(playerName(a), playerName(b)));
   }, [players, tournament, search, roleFilter, statusFilter, soldMap, unsoldSet, ownerMap, iconMap, retainedMap]);
 
   return (
@@ -400,12 +374,12 @@ export default function PlayerExplorer({ eventCode = 'ESL2026', tournament, onNa
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
           {filtered.map((p, idx) => {
-            const name = p.Name || p.name || 'Unknown';
+            const name = playerName(p) || 'Unknown';
             const cn = cleanName(name);
             const rawPhoto = p.Photo || p.photoUrl || '';
             const { affiliation, club, categories } = window.PlayerCategories.classify(p, tournament);
-            const batStyle = p['Batting Profile'] || p.battingProfile || '';
-            const bowlStyle = p['Bowling Profile'] || p.bowlingProfile || '';
+            const batStyle = window.PlayerCategories.fieldValue(p,'Batting Profile');
+            const bowlStyle = window.PlayerCategories.fieldValue(p,'Bowling Profile');
             const batPos = p['Batting position'] || p.battingPosition || '';
             const isWk = String(p['Are you a wicket keeper?'] || p.wicketKeeper || '').toLowerCase() === 'yes';
 

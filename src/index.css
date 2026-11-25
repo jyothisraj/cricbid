@@ -307,3 +307,6 @@ label {
 .career-editor section > div { display: grid; gap: 0 14px; grid-template-columns: repeat(auto-fit,minmax(min(150px,100%),1fr)); }
 .career-editor section { margin: 16px 0; }
 .career-editor button { margin: 8px 8px 0 0; }
+
+.career-event-banner { height: clamp(110px, 25vw, 220px); overflow: hidden; border-radius: 10px; margin-bottom: 20px; }
+.career-event-banner img { object-fit: contain !important; }

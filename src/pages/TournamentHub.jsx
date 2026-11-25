@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { listenEvents, getDb } from '../services/api';
+import EventBanner from '../components/EventBanner';
+import { listenEvents } from '../services/api';
 
 export default function TournamentHub({ onNavigate }) {
   const [events, setEvents] = useState([]);
@@ -18,7 +19,7 @@ export default function TournamentHub({ onNavigate }) {
     // 2. Realtime listener
     let unsubscribe = () => {};
     listenEvents(list => {
-      if (list && list.length > 0) {
+      if (Array.isArray(list)) {
         setEvents(list);
         setLoading(false);
       }
@@ -29,10 +30,7 @@ export default function TournamentHub({ onNavigate }) {
     return () => unsubscribe();
   }, []);
 
-  const activeEvents = events.filter(e => {
-    const st = String(e.status || '').toLowerCase();
-    return !['draft', 'inactive', 'archived'].includes(st);
-  });
+  const liveEvents = events.filter(event => String(event?.status || '').trim().toLowerCase() === 'live');
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 20px' }}>
@@ -58,19 +56,19 @@ export default function TournamentHub({ onNavigate }) {
 
       {/* Tournaments Grid */}
       <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h2 style={{ fontSize: '1.4rem', color: 'var(--text-main)' }}>Active Tournaments</h2>
+        <h2 style={{ fontSize: '1.4rem', color: 'var(--text-main)' }}>Live Tournaments</h2>
         <span className="badge badge-live">
-          ● {activeEvents.length} Active
+          ● {liveEvents.length} Live
         </span>
       </div>
 
-      {loading && activeEvents.length === 0 ? (
+      {loading && liveEvents.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', color: 'var(--slate-500)' }}>
-          Loading active tournaments...
+          Loading live tournaments...
         </div>
-      ) : activeEvents.length === 0 ? (
+      ) : liveEvents.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px', color: 'var(--slate-500)' }}>
-          No active tournaments found. Create one in the Admin Console.
+          No tournaments are live right now.
         </div>
       ) : (
         <div style={{
@@ -78,10 +76,8 @@ export default function TournamentHub({ onNavigate }) {
           gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
           gap: '24px'
         }}>
-          {activeEvents.map(ev => {
+          {liveEvents.map(ev => {
             const evCode = ev.eventCode || 'ESL2026';
-            const bannerUrl = ev.bannerUrl || '';
-
             return (
               <div 
                 key={evCode}
@@ -100,14 +96,7 @@ export default function TournamentHub({ onNavigate }) {
                   position: 'relative',
                   overflow: 'hidden'
                 }}>
-                  {bannerUrl ? (
-                    <img 
-                      src={bannerUrl} 
-                      alt={ev.eventName}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={e => { e.target.style.display = 'none'; }}
-                    />
-                  ) : null}
+                  <EventBanner event={ev} />
                   <div style={{
                     position: 'absolute',
                     top: '12px',

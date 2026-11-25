@@ -162,3 +162,9 @@ npm run build
 ### Player career statistics updates
 
 Share `/player/EVENTCODE` with registered players. Anyone holding a booking ID can edit career statistics for matching registrations in that event. Shared bookings offer a profile selector. Store booking IDs as text to preserve leading zeros. Deploy the updated Apps Script web app and frontend together. Editing sessions expire after 15 minutes.
+
+### Admin player import
+
+Open Admin > Players > Import players. Select a tournament and upload a UTF-8 CSV or an Excel workbook (.xlsx or .xls). The first worksheet and first header row are used. Include Booking ID on every row and Name or Player Name for new registrations. Re-importing the same ID in the selected tournament updates non-empty fields. Blank cells preserve existing values. The selected tournament controls the destination. Booking IDs with leading zeros should be text or formatted to display those zeros in Excel.
+
+Deploy the updated Apps Script and appsscript.json together before using the import screen. The manifest enables the advanced Drive v3 service for Excel conversion. For a standard Google Cloud project, enable the Google Drive API in that project. Temporary converted workbooks are moved to trash after reading.

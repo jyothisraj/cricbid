@@ -1256,7 +1256,8 @@
             const grid = document.createElement('div');
             grid.className = 'players-grid';
 
-            players.forEach((player, index) => {
+            const ordered = [...players].sort((a, b) => PlayerCategories.compareNames(getPlayerName(a), getPlayerName(b)));
+            ordered.forEach((player, index) => {
                 const name = getPlayerName(player);
                 const initials = getInitials(name);
                 const role = getRoleTag(player);

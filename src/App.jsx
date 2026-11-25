@@ -7,7 +7,7 @@ import PlayerStatsEditor from './pages/PlayerStatsEditor';
 import Admin from './pages/Admin';
 import { getDb } from './services/api';
 
-function AuctionScreen({ eventCode, teamView, playersView, onNavigate }) {
+function AuctionScreen({ eventCode, teamView, playersView, statsView, onNavigate }) {
   const [event, setEvent] = useState(null);
   useEffect(() => {
     let active = true;
@@ -25,6 +25,7 @@ function AuctionScreen({ eventCode, teamView, playersView, onNavigate }) {
       if (ref) ref.off('value', update);
     };
   }, [eventCode]);
+  if (statsView) return <PlayerStatsEditor eventCode={eventCode} tournament={event} />;
   if (playersView) return <PlayerExplorer eventCode={eventCode} tournament={event} onNavigate={onNavigate} />;
   if (!event) return <p>Loading auction…</p>;
   if (teamView && event.auctionMode !== 'offline') return <TeamLogin tournament={event} eventCode={eventCode} onNavigate={onNavigate} />;
@@ -107,7 +108,7 @@ export default function App() {
   } else if (route === 'spectator' || route === 'public-dashboard' || route === 'dashboard') {
     pageContent = <AuctionScreen key={paramEventCode} eventCode={paramEventCode} onNavigate={navigate} />;
   } else if (route === 'player' && segments[1]) {
-    pageContent = <PlayerStatsEditor key={paramEventCode} eventCode={paramEventCode.toUpperCase()} />;
+    pageContent = <AuctionScreen statsView key={paramEventCode} eventCode={paramEventCode.toUpperCase()} />;
   } else if (route === 'players') {
     pageContent = <AuctionScreen key={paramEventCode} playersView eventCode={paramEventCode} onNavigate={navigate} />;
   } else if (route === 'admin') {

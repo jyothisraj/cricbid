@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import EventBanner from '../components/EventBanner';
 import { apiPost, getDb, sanitizeKey } from '../services/api';
 
 const groups = {
@@ -30,7 +31,7 @@ async function refreshAuctionStats(event, profile, changes) {
   await refresh(db.ref('players/' + event + '/' + sanitizeKey(profile.name)));
 }
 
-export default function PlayerStatsEditor({eventCode}) {
+export default function PlayerStatsEditor({eventCode, tournament}) {
   const [bookingId,setBookingId] = useState('');
   const [session,setSession] = useState('');
   const [profiles,setProfiles] = useState([]);
@@ -77,7 +78,9 @@ export default function PlayerStatsEditor({eventCode}) {
     } catch (err) { setMessage(err.message); }
     finally { setBusy(false); }
   }
-  return <main className="glass-panel career-editor"><h1>Update career statistics</h1><p>{eventCode}</p>
+  return <main className="glass-panel career-editor">
+    <EventBanner event={tournament} className="career-event-banner" />
+    <h1>Update career statistics</h1><p>{eventCode}</p>
     <form onSubmit={submit}><fieldset disabled={busy}>
       {!session && <label>Booking ID<input type="text" maxLength={150} required value={bookingId} onChange={e=>setBookingId(e.target.value)} /></label>}
       {session && <label>Player profile<select value={id} onChange={e=>{ select(profiles.find(p=>p.id===e.target.value)); setMessage(''); }}>

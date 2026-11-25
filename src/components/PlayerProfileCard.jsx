@@ -88,9 +88,9 @@ export default function PlayerProfileCard({ player, eventCode, tournament, liveD
   const name = getField(player, 'Name', 'name', 'playerName') || 'Unknown Player';
   const rawPhoto = getField(player, 'Photo', 'photoUrl', 'photo', 'image');
   const { affiliation, club, categories } = window.PlayerCategories.classify(player, tournament);
-  const battingProfile = getField(player, 'Batting Profile', 'battingProfile', 'Batting Style', 'role');
+  const battingProfile = window.PlayerCategories.fieldValue(player,'Batting Profile');
   const battingPosition = getField(player, 'Batting position', 'battingPosition', 'Batting Position', 'batting order');
-  const bowlingProfile = getField(player, 'Bowling Profile', 'bowlingProfile', 'Bowling Style');
+  const bowlingProfile = window.PlayerCategories.fieldValue(player,'Bowling Profile');
   const isWk = getField(player, 'Are you a wicket keeper?', 'wicketKeeper', 'Wicket Keeper', 'keeper').toLowerCase() === 'yes';
 
   // Base price
@@ -100,7 +100,7 @@ export default function PlayerProfileCard({ player, eventCode, tournament, liveD
     SR: sr, Avg: avg, Wickets: wickets, '5 Wkts': fiveWkts, '3 Wkts': threeWkts, Economy: economy } = stats;
 
   // Extra details
-  const age = getField(player, 'Age', 'age');
+  const age = window.PlayerCategories.fieldValue(player,'Age',tournament);
   const city = getField(player, 'Location', 'City', 'city', 'location');
   const jersey = getField(player, 'Jersey', 'Jersey Number', 'jerseyNumber');
 

@@ -92,10 +92,7 @@ export async function listenEvents(callback) {
   const ref = db.ref('events');
   const handler = snap => {
     const val = snap.val();
-    if (val) {
-      const list = Array.isArray(val) ? val : Object.values(val);
-      callback(list);
-    }
+    callback(Array.isArray(val) ? val : Object.values(val || {}));
   };
   ref.on('value', handler);
   return () => ref.off('value', handler);

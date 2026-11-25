@@ -1275,6 +1275,8 @@
             <section style="margin:20px 0;padding:18px 0;border-block:1px solid var(--border);">
                 <h3 style="margin:0 0 12px;">Player classification</h3>
                 <div class="form-group">
+                    <label for="ef_cutoffDate">Age cutoff date (defaults to tournament start)</label>
+                    <input type="date" id="ef_cutoffDate" />
                     <label for="ef_hostClub">Host club name (optional)</label>
                     <input type="text" id="ef_hostClub" placeholder="e.g. Eminent Cricket Club" />
                     <small>Matching clubs are Home. Other players are Away. Leave blank to display each player's club name.</small>
@@ -1471,7 +1473,7 @@
                         </a>
                     </div>
                     <div style="display:flex;gap:8px;">
-                        <input type="text" id="tf_logo" placeholder="https://... or upload logo" oninput="previewTeamLogo(this.value)" style="flex:1;" />
+                        <input type="text" id="tf_logo" placeholder="https://... or upload logo" oninput="changeTeamLogoUrl(this)" style="flex:1;" />
                         <label class="btn btn-outline" style="cursor:pointer;margin:0;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;padding:8px 14px;font-size:0.85rem;" title="Upload to Google Drive <EventCode>/Teams/<teamname>.png">
                             <span>📤</span> <span>Upload Logo</span>
                             <input type="file" id="tf_logoFileInput" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleTeamLogoFileUpload(this)" />
@@ -1566,6 +1568,19 @@
 
 <!-- TAB: Players (Edit / Add Players & Upload Photo) -->
 <div class="tab-content" id="tab-players">
+    <form id="playerImportView" class="card" hidden onsubmit="submitPlayerImport(event)">
+        <h3>Import players</h3>
+        <fieldset id="playerImportFields" style="border:0;padding:0">
+            <div class="form-row">
+                <label class="form-group">Tournament<select id="playerImportEvent" required></select></label>
+                <label class="form-group">Player file<input id="playerImportFile" type="file" accept=".xlsx,.xls,.csv" required></label>
+            </div>
+            <p>Include Booking ID for every row and Name for new players. Matching bookings in this tournament are updated using non-empty cells. Excel imports use the first worksheet.</p>
+            <button type="submit" class="btn btn-gold">Import players</button>
+            <button type="button" class="btn btn-outline" onclick="showPlayersListView()">Back to players</button>
+        </fieldset>
+        <p id="playerImportStatus" role="status"></p>
+    </form>
     <!-- SUBVIEW 1: Registered Players List -->
     <div id="playersListView">
         <div class="card">
@@ -1582,6 +1597,7 @@
                             <option value="ALL">All Tournaments</option>
                         </select>
                     </div>
+                    <button class="btn btn-outline" onclick="showPlayerImport()">Import players</button>
                     <button class="btn btn-gold" onclick="showAddPlayerView()" style="display:inline-flex;align-items:center;gap:6px;font-weight:700;box-shadow:0 4px 12px rgba(37,99,235,0.2);">
                         <span style="font-size:1.1rem;line-height:1;">+</span> Add Player
                     </button>
@@ -1721,6 +1737,8 @@
                     <span>🏏</span> Cricket Attributes &amp; Role Profiles
                 </h4>
                 <div class="form-row">
+                    <div class="form-group"><label for="pf_dob">Date of birth</label><input id="pf_dob" type="date" /></div>
+                    <div class="form-group"><label for="pf_category">Player category</label><input id="pf_category" type="text" /></div>
                     <div class="form-group"><label for="pf_age">Age in years</label><input type="number" id="pf_age" min="0" step="1" /></div>
                     <div class="form-group"><label for="pf_cricketProfile">Cricketing profile</label><input type="text" id="pf_cricketProfile" placeholder="e.g. All rounder" /></div>
                 </div>
@@ -2689,13 +2707,14 @@ function renderEvents() {
 
     container.innerHTML = `<div class="events-grid">` + sortedEvents.map(ev => {
         const isActive = ev.eventCode === activeEventCode;
-        const bUrl = (ev.bannerUrl || '').trim();
-        const driveFileId = getDriveFileId(bUrl);
+        const bUrl = String(ev.bannerUrl || ev.driveViewUrl || '').trim();
+        const driveFileId = getDriveFileId(bUrl) || getDriveFileId(ev.driveViewUrl) || ev.driveFileId || '';
         const driveView = driveFileId ? `https://drive.google.com/file/d/${driveFileId}/view` : bUrl;
-        const bannerImg = bUrl
+        const imageSrc = getDisplayImageUrl(bUrl || driveView);
+        const bannerImg = imageSrc
             ? `
                 <div style="position:relative;width:100%;height:130px;overflow:hidden;background:#0F172A;cursor:pointer;" onclick="openImageViewer('${esc(bUrl)}', '${esc(ev.eventName || ev.eventCode)} — Tournament Banner', '${esc(driveView)}')" title="Click to view full banner">
-                    <img src="${esc(bUrl)}" class="event-card-banner" alt="${esc(ev.eventName)}" onerror="onEventBannerImgError(this, '${esc(driveFileId)}', '${esc(ev.eventCode)}')" />
+                    <img src="${esc(imageSrc)}" referrerpolicy="no-referrer" class="event-card-banner" alt="${esc(ev.eventName)}" onerror="onEventBannerImgError(this, '${esc(driveFileId)}', '${esc(ev.eventCode)}')" />
                     <div style="position:absolute;bottom:8px;right:8px;background:rgba(15,23,42,0.8);color:#FFFFFF;padding:3px 8px;border-radius:6px;font-size:0.7rem;font-weight:600;display:inline-flex;align-items:center;gap:4px;backdrop-filter:blur(4px);pointer-events:none;">
                         <span>👁️</span> <span>View Banner</span>
                     </div>
@@ -2900,7 +2919,7 @@ function roundOrderEditor(container, order = {}, eligible = () => true) {
         const players = allPlayers.filter(player => [code, 'ALL'].includes(getPlayerEventCode(player)));
         const known = new Set(players.map(getPlayerName));
         const available = new Set(players.filter(eligible).map(getPlayerName).filter(Boolean));
-        names = [...available].sort((a,b) => a.localeCompare(b));
+        names = [...available].sort(PlayerCategories.compareNames);
         for (const group of Object.values(selected)) {
             for (const name of group) if (known.has(name) && !available.has(name)) group.delete(name);
         }
@@ -2916,6 +2935,9 @@ function readRoundOrder(container) {
 }
 
 let refreshOpenRoundOrder;
+function editorEventDates() {
+    return {cutoffDate: document.getElementById('ef_cutoffDate').value, startDate: document.getElementById('ef_start').value};
+}
 function editorRoundRule(card) {
     const conditions = Array.from(card.querySelectorAll('.category-condition'), row => ({
         field: row.querySelector('.rule-field').value, operator: row.querySelector('.rule-operator').value,
@@ -2940,7 +2962,7 @@ function addCategoryEditor(rule = {}) {
     for (const condition of rule.conditions || [{}]) addConditionEditor(container, condition);
     const orderFields = card.querySelector('.order-fields');
     const refresh = roundOrderEditor(orderFields, rule.order, player => {
-        return PlayerCategories.classify(player, { playerCategories: [editorRoundRule(card)] }).categories.length > 0;
+        return PlayerCategories.classify(player, { ...editorEventDates(), playerCategories: [editorRoundRule(card)] }).matchedRules.length > 0;
     });
     function update() {
         orderFields.hidden = !card.querySelector('.category-round').checked;
@@ -2976,9 +2998,10 @@ function addBidLevel(level = {}) {
 function loadClassificationEditor(event = {}) {
     document.getElementById('bidLevels').replaceChildren();
     (event.bidLevels || BidLevels.defaults).forEach(addBidLevel);
+    document.getElementById('ef_cutoffDate').value = event.cutoffDate || '';
     document.getElementById('ef_hostClub').value = event.hostClub || '';
     const fields = new Set([...playerHeaders, ...allPlayers.flatMap(player => Object.keys(player)),
-        'Age', 'Club', 'Cricketing Profile', 'Are you a wicket keeper?', 'Batting Profile', 'Batting position', 'Bowling Profile']);
+        'Age', 'Date of Birth', 'Player Category', 'Club', 'Cricketing Profile', 'Are you a wicket keeper?', 'Batting Profile', 'Batting position', 'Bowling Profile']);
     const options = [...fields].sort().map(field => new Option(field, field));
     document.getElementById('categoryFieldNames').content.replaceChildren(...options);
     document.getElementById('eventCategories').replaceChildren();
@@ -2986,9 +3009,9 @@ function loadClassificationEditor(event = {}) {
     for (const rule of event.playerCategories || []) addCategoryEditor(rule);
     let rules = Array.from(document.querySelectorAll('#eventCategories .category-round:checked'), checkbox => editorRoundRule(checkbox.closest('.event-category')));
     const refresh = roundOrderEditor(openFields, event.openRoundOrder, player =>
-        !PlayerCategories.classify(player, { playerCategories: rules }).categories.length);
+        !PlayerCategories.classify(player, { ...editorEventDates(), playerCategories: rules }).matchedRules.length);
     refreshOpenRoundOrder = updatedRules => { rules = updatedRules; refresh(); };
-    document.getElementById('ef_code').oninput = () => {
+    document.getElementById('ef_cutoffDate').onchange = document.getElementById('ef_start').onchange = document.getElementById('ef_code').oninput = () => {
         refresh();
         document.querySelectorAll('#eventCategories .category-round').forEach(input => input.dispatchEvent(new Event('change', { bubbles: true })));
     };
@@ -3034,7 +3057,7 @@ function readClassificationEditor() {
         if (!conditions.length) return invalid('Add at least one condition for ' + name + '.', card.querySelector('[data-add]'));
         playerCategories.push({ name, conditions, ...(card.querySelector('.category-round').checked ? { roundId: card.dataset.roundId, order: readRoundOrder(card.querySelector('.order-fields')) } : {}) });
     }
-    return { bidLevels, hostClub: document.getElementById('ef_hostClub').value.trim(), playerCategories, openRoundOrder: readRoundOrder(document.querySelector('#openRoundOrder .order-fields')) };
+    return { bidLevels, cutoffDate: document.getElementById('ef_cutoffDate').value, hostClub: document.getElementById('ef_hostClub').value.trim(), playerCategories, openRoundOrder: readRoundOrder(document.querySelector('#openRoundOrder .order-fields')) };
 }
 
 function showCreateEventView() {
@@ -3545,7 +3568,7 @@ async function loadAll() {
             sheetTeams.forEach(st => {
                 const idx = allTeams.findIndex(t => t.teamName.toLowerCase() === st.teamName.toLowerCase() && (t.eventCode || 'ESL2026') === st.eventCode);
                 if (idx === -1) allTeams.push(st);
-                else allTeams[idx] = Object.assign({}, allTeams[idx], st);
+                else allTeams[idx] = mergeTeamLogo(st, allTeams[idx], {...allTeams[idx], ...st});
             });
         }
 
@@ -3555,7 +3578,7 @@ async function loadAll() {
                 nt.eventCode = (nt.eventCode || '').trim().toUpperCase() || 'ESL2026';
                 const idx = allTeams.findIndex(t => t.teamName.toLowerCase() === nt.teamName.toLowerCase() && (t.eventCode || 'ESL2026') === nt.eventCode);
                 if (idx === -1) allTeams.push(nt);
-                else allTeams[idx] = Object.assign({}, allTeams[idx], nt);
+                else allTeams[idx] = mergeTeamLogo(nt, allTeams[idx], {...allTeams[idx], ...nt});
             });
         }
 
@@ -3572,7 +3595,7 @@ async function loadAll() {
                             nt.eventCode = ev;
                             const idx = allTeams.findIndex(t => t.teamName.toLowerCase() === nt.teamName.toLowerCase() && (t.eventCode || 'ESL2026') === nt.eventCode);
                             if (idx === -1) allTeams.push(nt);
-                            else allTeams[idx] = Object.assign({}, allTeams[idx], nt);
+                            else allTeams[idx] = mergeTeamLogo(allTeams[idx], nt, {...allTeams[idx], ...nt});
                         }
                     });
                 }
@@ -3886,6 +3909,26 @@ function clearEventBanner() {
     previewEventBanner('');
 }
 
+let teamLogoRevision = 0;
+function changeTeamLogoUrl(input) {
+    teamLogoRevision++;
+    delete input.dataset.base64;
+    delete input.dataset.driveFileId;
+    delete input.dataset.driveViewUrl;
+    previewTeamLogo(input.value);
+}
+function mergeTeamLogo(sheetTeam, cachedTeam, merged) {
+    const sheetUrl = teamLogoSource(sheetTeam);
+    if (!sheetUrl) return merged;
+    const fileId = getDriveFileId(sheetUrl) || sheetTeam.driveFileId || '';
+    const cachedId = cachedTeam.driveFileId || getDriveFileId(cachedTeam.driveViewUrl || '');
+    const sameImage = fileId && fileId === cachedId && cachedTeam.logoUrl?.startsWith('data:');
+    return {...merged, logoUrl: sameImage ? cachedTeam.logoUrl : sheetUrl, driveFileId: fileId,
+        driveViewUrl: sheetUrl.startsWith('data:') ? sheetTeam.driveViewUrl || '' : sheetUrl};
+}
+function teamLogoSource(team) {
+    return team.logoUrl || team.driveViewUrl || (team.driveFileId ? 'https://drive.google.com/file/d/' + team.driveFileId + '/view' : '');
+}
 function previewTeamLogo(url, driveUrl = '', teamName = '') {
     const cont = document.getElementById('tf_logoPreviewContainer');
     const img = document.getElementById('tf_logoPreviewImg');
@@ -3899,7 +3942,7 @@ function previewTeamLogo(url, driveUrl = '', teamName = '') {
         cont.style.display = 'flex';
         img.style.display = 'block';
         if (fallback) fallback.style.display = 'none';
-        if (titleEl && teamName) titleEl.textContent = `${teamName} Logo`;
+        if (titleEl) titleEl.textContent = (teamName || document.getElementById('tf_name').value || 'Team') + ' Logo';
 
         const fid = getDriveFileId(cleanUrl) || getDriveFileId(driveUrl);
         const resolvedDriveUrl = driveUrl || (fid ? `https://drive.google.com/file/d/${fid}/view` : cleanUrl);
@@ -3908,15 +3951,8 @@ function previewTeamLogo(url, driveUrl = '', teamName = '') {
             driveLink.style.display = (fid || driveUrl) ? 'inline-flex' : 'none';
         }
 
-        const tCode = (document.getElementById('tf_eventCode')?.value || activeEventCode || 'ESL2026').trim().toUpperCase();
-        const t = allTeams.find(tm => tm.teamName.toLowerCase() === (teamName || '').toLowerCase() && (tm.eventCode || 'ESL2026') === tCode);
-        const cachedBase64 = (document.getElementById('tf_logo')?.dataset?.base64) || (t && t.logoUrl && t.logoUrl.startsWith('data:') ? t.logoUrl : '');
-
+        const cachedBase64 = cleanUrl.startsWith('data:') ? cleanUrl : document.getElementById('tf_logo').dataset.base64;
         img.onerror = function() {
-            if (cachedBase64 && this.src !== cachedBase64) {
-                this.src = cachedBase64;
-                return;
-            }
             if (fid && !this.dataset.tried) {
                 this.dataset.tried = '1';
                 this.src = `https://drive.google.com/thumbnail?id=${fid}&sz=w400`;
@@ -3946,18 +3982,14 @@ function viewCurrentTeamLogo() {
     const input = document.getElementById('tf_logo');
     const rawVal = input ? input.value.trim() : '';
     const name = (document.getElementById('tf_name')?.value || 'Team').trim();
-    const tCode = (document.getElementById('tf_eventCode')?.value || activeEventCode || 'ESL2026').trim().toUpperCase();
-    const team = allTeams.find(t => t.teamName.toLowerCase() === name.toLowerCase() && (t.eventCode || 'ESL2026') === tCode);
-
-    const logoUrl = (input?.dataset?.base64) || (team?.logoUrl) || rawVal;
-    if (!logoUrl && !rawVal) return toast('No logo URL or image currently uploaded', 'warning');
-
-    const driveId = getDriveFileId(rawVal) || team?.driveFileId || getDriveFileId(team?.logoUrl || '');
-    const driveUrl = team?.driveViewUrl || (driveId ? `https://drive.google.com/file/d/${driveId}/view` : rawVal);
+    const logoUrl = input?.dataset.base64 || rawVal;
+    if (!logoUrl) return toast('No logo URL or image currently uploaded', 'warning');
+    const driveUrl = input?.dataset.driveViewUrl || rawVal;
     openImageViewer(logoUrl || rawVal, `${name} — Team Logo`, driveUrl);
 }
 
 function clearTeamLogo() {
+    teamLogoRevision++;
     const input = document.getElementById('tf_logo');
     if (input) {
         input.value = '';
@@ -3974,8 +4006,14 @@ function clearTeamLogo() {
 
 function onEventBannerImgError(imgEl, driveFileId, eventCode) {
     const ev = allEvents.find(e => e.eventCode === eventCode);
-    if (ev && ev.bannerUrl && ev.bannerUrl.startsWith('data:') && imgEl.src !== ev.bannerUrl) {
+    if (!imgEl.dataset.triedCached && ev?.bannerUrl?.startsWith('data:') && imgEl.src !== ev.bannerUrl) {
+        imgEl.dataset.triedCached = '1';
         imgEl.src = ev.bannerUrl;
+        return;
+    }
+    if (driveFileId && !imgEl.dataset.triedThumbnail) {
+        imgEl.dataset.triedThumbnail = '1';
+        imgEl.src = `https://drive.google.com/thumbnail?id=${encodeURIComponent(driveFileId)}&sz=w1000`;
         return;
     }
     if (imgEl.parentElement) {
@@ -4032,7 +4070,7 @@ function handleTeamLogoFileUpload(fileInput) {
 
     uploadImageFile({
         file: file,
-        type: 'teamLogo',
+        type: 'teamlogo',
         eventCode: eventCode,
         teamName: teamName,
         maxDim: 600,
@@ -4096,6 +4134,10 @@ async function uploadImageFile(opts) {
     const prevCont = document.getElementById(previewContainerId);
     const prevImg = document.getElementById(previewImgId);
 
+    const revision = type === 'teamlogo' ? ++teamLogoRevision : null;
+    const isCurrent = () => revision === null || (revision === teamLogoRevision &&
+        document.getElementById('tf_eventCode').value === eventCode && document.getElementById('tf_name').value.trim() === teamName);
+
     if (file.size > 10 * 1024 * 1024) {
         toast('File is too large (max 10MB). Please select a smaller image.', 'error');
         return;
@@ -4109,7 +4151,9 @@ async function uploadImageFile(opts) {
         const { base64Data, mimeType } = await processImageForUpload(file, maxDim || 1200, quality || 0.9);
 
         // Immediate local preview while uploading
-        if (prevImg) prevImg.src = base64Data;
+        if (!isCurrent()) return;
+        if (type === 'teamlogo') previewTeamLogo(base64Data, '', teamName);
+        else if (prevImg) prevImg.src = base64Data;
         if (prevCont) {
             prevCont.style.display = type === 'banner' ? 'block' : 'flex';
         }
@@ -4135,6 +4179,7 @@ async function uploadImageFile(opts) {
             baseFolderId: DRIVE_BASE_FOLDER_ID
         });
 
+        if (!isCurrent()) return;
         if (res.error) {
             throw new Error(res.error);
         }
@@ -4197,7 +4242,7 @@ async function uploadImageFile(opts) {
                 fbBroadcastTeams();
             }
             previewTeamLogo(base64Data, driveViewUrl, teamName);
-            apiPost({ action: 'updateTeam', teamName: teamName, eventCode: eventCode, logoUrl: driveViewUrl }).catch(()=>{});
+            // uploadFile already updates the matching team logo in the sheet.
         } else if (type === 'playerphoto' || type === 'player' || type === 'photo') {
             const pIdx = allPlayers.findIndex(p => (getPlayerName(p) || '').toLowerCase() === (playerName || '').toLowerCase() && (getPlayerEventCode(p) === eventCode.toUpperCase() || !p.EventCode));
             if (pIdx !== -1) {
@@ -4233,6 +4278,7 @@ async function uploadImageFile(opts) {
         }
         toast(`${label} successfully uploaded & saved to Tournament!`, 'success');
     } catch (err) {
+        if (!isCurrent()) return;
         console.error('Image upload failed:', err);
         const rawMsg = err.message || 'Error uploading file';
         let displayHtml = `<span style="color:var(--red);font-weight:600;">❌ Upload failed: ${esc(rawMsg)}</span>`;
@@ -4305,6 +4351,7 @@ function getActiveEventTeams() {
 }
 
 function showTeamsListView() {
+    teamLogoRevision++;
     const listView = document.getElementById('teamsListView');
     const formView = document.getElementById('teamFormView');
     if (listView) listView.style.display = 'block';
@@ -4346,7 +4393,7 @@ function showAddTeamView() {
 
 function showEditTeamView(teamName, evCode) {
     const targetEvent = evCode || activeEventCode;
-    const team = allTeams.find(t => t.teamName === teamName && (t.eventCode || 'ESL2026') === targetEvent) || allTeams.find(t => t.teamName === teamName);
+    const team = allTeams.find(t => t.teamName === teamName && (t.eventCode || 'ESL2026') === targetEvent);
     if (!team) return toast('Team not found', 'error');
 
     const listView = document.getElementById('teamsListView');
@@ -4363,7 +4410,8 @@ function showEditTeamView(teamName, evCode) {
     document.getElementById('tf_origEventCode').value = team.eventCode || targetEvent;
     document.getElementById('tf_name').value = team.teamName;
     const logoInput = document.getElementById('tf_logo');
-    const displayLogoVal = team.driveViewUrl || team.logoUrl || '';
+    clearTeamLogo();
+    const displayLogoVal = team.driveViewUrl || teamLogoSource(team);
     if (logoInput) {
         logoInput.value = displayLogoVal.startsWith('data:') ? (team.driveViewUrl || 'Uploaded Team Logo') : displayLogoVal;
         if (team.logoUrl && team.logoUrl.startsWith('data:')) {
@@ -4374,7 +4422,7 @@ function showEditTeamView(teamName, evCode) {
         if (team.driveFileId) logoInput.dataset.driveFileId = team.driveFileId;
         if (team.driveViewUrl) logoInput.dataset.driveViewUrl = team.driveViewUrl;
     }
-    previewTeamLogo(team.logoUrl || '', team.driveViewUrl || '', team.teamName);
+    previewTeamLogo(teamLogoSource(team), team.driveViewUrl || '', team.teamName);
     document.getElementById('tf_user').value = team.username || '';
     document.getElementById('tf_pass').value = team.password || '';
 
@@ -4516,7 +4564,7 @@ function populateTeamFormPlayers(evCode, selectedOwners = [], selectedIcons = []
         return true;
     });
 
-    const playerNames = filteredPlayers.map(p => getPlayerName(p)).filter(n => n && n !== 'Unknown');
+    const playerNames = filteredPlayers.map(p => getPlayerName(p)).filter(n => n && n !== 'Unknown').sort(PlayerCategories.compareNames);
 
     const assignments = otherTeamAssignments(evCode.trim().toUpperCase());
     const available = playerNames.filter(name => !assignments.has(name.trim().toLowerCase()));
@@ -4526,7 +4574,7 @@ function populateTeamFormPlayers(evCode, selectedOwners = [], selectedIcons = []
 
 function renderDynamicPlayerSelectors(evCode, playerNames, selectedOwners, selectedIcons, selectedRetained, assignments) {
     function playerOptions(selected, showPrice = false) {
-        const names = selected && !playerNames.includes(selected) ? [selected, ...playerNames] : playerNames;
+        const names = selected && !playerNames.includes(selected) ? [...playerNames, selected].sort(PlayerCategories.compareNames) : playerNames;
         return names.map(name => {
             const otherTeam = assignments.get(name.trim().toLowerCase());
             const price = showPrice ? ' (' + formatNum(getPlayerBaseValue(name, evCode)) + ')' : '';
@@ -4698,7 +4746,7 @@ async function addTeam() {
     const newTeam = {
         eventCode: targetEvent,
         teamName: teamName,
-        logoUrl: sheetLogoUrl || logoVal,
+        logoUrl: logoVal || sheetLogoUrl,
         driveFileId: logoDriveId,
         driveViewUrl: logoDriveView,
         ownerName: ownerPlayers.join(', '),
@@ -4801,17 +4849,10 @@ async function saveEditTeam() {
 
     const logoInput = document.getElementById('tf_logo');
     const origEv = (document.getElementById('tf_origEventCode')?.value || targetEvent).trim().toUpperCase();
-    const existingTeam = allTeams.find(t => t.teamName === origName && (t.eventCode || 'ESL2026').toUpperCase() === origEv);
-    let logoVal = logoInput ? logoInput.value.trim() : '';
-    if (logoInput?.dataset?.base64) {
-        logoVal = logoInput.dataset.base64;
-    } else if (existingTeam && existingTeam.logoUrl && existingTeam.logoUrl.startsWith('data:') && (!logoVal || logoVal === existingTeam.driveViewUrl || logoVal === 'Uploaded Team Logo' || logoVal.includes('drive.google.com'))) {
-        logoVal = existingTeam.logoUrl;
-    }
-
-    const logoDriveId = logoInput?.dataset?.driveFileId || existingTeam?.driveFileId || getDriveFileId(logoInput?.value.trim() || '') || getDriveFileId(existingTeam?.logoUrl || '');
-    const logoDriveView = logoInput?.dataset?.driveViewUrl || existingTeam?.driveViewUrl || (logoDriveId ? `https://drive.google.com/file/d/${logoDriveId}/view` : '');
-    const sheetLogoUrl = logoDriveView || (logoVal.startsWith('http') ? logoVal : (existingTeam?.driveViewUrl || (existingTeam?.logoUrl && existingTeam.logoUrl.startsWith('http') ? existingTeam.logoUrl : '')));
+    const logoVal = logoInput?.dataset.base64 || logoInput?.value.trim() || '';
+    const logoDriveId = logoInput?.dataset.driveFileId || getDriveFileId(logoInput?.value.trim() || '');
+    const logoDriveView = logoInput?.dataset.driveViewUrl || (logoDriveId ? `https://drive.google.com/file/d/${logoDriveId}/view` : '');
+    const sheetLogoUrl = logoDriveView || (logoVal.startsWith('http') ? logoVal : '');
 
     let purchaseLog = auctionLog;
     if (targetEvent !== activeEventCode) {
@@ -4822,7 +4863,7 @@ async function saveEditTeam() {
     const updated = {
         teamName: teamName,
         eventCode: targetEvent,
-        logoUrl: sheetLogoUrl || logoVal,
+        logoUrl: logoVal || sheetLogoUrl,
         driveFileId: logoDriveId,
         driveViewUrl: logoDriveView,
         ownerName: ownerPlayers.join(', '),
@@ -4912,7 +4953,7 @@ function renderTeamsTable() {
 
     displayedTeams.forEach(t => {
         const evCode = t.eventCode || 'ESL2026';
-        const tLogoUrl = (t.logoUrl || '').trim();
+        const tLogoUrl = teamLogoSource(t).trim();
         const tDriveId = getDriveFileId(tLogoUrl) || t.driveFileId;
         const tDriveView = t.driveViewUrl || (tDriveId ? `https://drive.google.com/file/d/${tDriveId}/view` : tLogoUrl);
         const displayLogoSrc = getDisplayImageUrl(tLogoUrl);
@@ -5011,7 +5052,82 @@ function renderPlayerEventSelectors() {
     }
 }
 
+function showPlayerImport() {
+    const form = document.getElementById('playerImportView');
+    form.reset();
+    const select = document.getElementById('playerImportEvent');
+    select.replaceChildren(new Option('Choose a tournament', ''), ...allEvents.map(event =>
+        new Option(event.eventCode + ' - ' + event.eventName, event.eventCode)));
+    select.value = allEvents.some(event => event.eventCode === activeEventCode) ? activeEventCode : '';
+    document.getElementById('playerImportStatus').textContent = '';
+    document.getElementById('playersListView').style.display = 'none';
+    form.hidden = false;
+}
+
+async function submitPlayerImport(event) {
+    event.preventDefault();
+    const fields = document.getElementById('playerImportFields');
+    if (fields.disabled) return;
+    const code = document.getElementById('playerImportEvent').value;
+    const file = document.getElementById('playerImportFile').files[0];
+    const status = document.getElementById('playerImportStatus');
+    if (!file || !code) return;
+    fields.disabled = true;
+    try {
+        status.textContent = 'Importing players...';
+        if (file.size > 8 * 1024 * 1024) throw Error('Choose a file smaller than 8 MB.');
+        const encoded = await new Promise((resolve,reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = () => reject(Error('Could not read this file.'));
+            reader.readAsDataURL(file);
+        });
+        const result = await apiPost({action:'importPlayers',eventCode:code,filename:file.name,encoded});
+        if (!result.success) throw Error(result.error || 'Import failed.');
+        const records = result.players;
+        if (result.updated === undefined) throw Error('Update the Apps Script deployment to enable booking ID merges.');
+        playerHeaders = [...new Set([...playerHeaders,...result.headers])];
+        const booking = player => {
+            const key = Object.keys(player).find(h => h.toLowerCase().replace(/[\s_-]/g,'') === 'bookingid');
+            return String(player[key] ?? player.ID ?? player.id ?? '').trim();
+        };
+        function mergeRoster(list) {
+            const incoming = new Map(records.map(player => [booking(player), player]));
+            const merged = list.map(player => {
+                if (getPlayerEventCode(player) !== code) return player;
+                const id = booking(player);
+                const update = incoming.get(id);
+                if (!update) return player;
+                incoming.delete(id);
+                return {...player,...update};
+            });
+            return merged.concat([...incoming.values()]);
+        }
+        allPlayers = mergeRoster(allPlayers);
+        const summary = result.added + ' added, ' + result.updated + ' updated, ' + result.unchanged + ' unchanged.';
+        status.textContent = summary;
+        renderPlayersTable();
+        populatePlayerDropdowns();
+        if (db && records.length) {
+            try {
+                const paths = ['auctions/' + code + '/players'];
+                if (code === 'ESL2026') paths.push('eslAuction/players');
+                for (const path of paths) {
+                    const ref = db.ref(path);
+                    await ref.once('value');
+                    await ref.transaction(current => {
+                        const list = Object.values(current || {}).filter(Boolean);
+                        return mergeRoster(list);
+                    });
+                }
+            } catch { status.textContent = summary + ' Auction sync failed. Retry this file to sync.'; }
+        }
+    } catch (error) { status.textContent = error.message; }
+    finally { fields.disabled = false; }
+}
+
 function showPlayersListView() {
+    document.getElementById('playerImportView').hidden = true;
     const listView = document.getElementById('playersListView');
     const formView = document.getElementById('playerFormView');
     if (listView) listView.style.display = 'block';
@@ -5034,6 +5150,8 @@ function showAddPlayerView() {
     document.getElementById('pf_origName').value = '';
     document.getElementById('pf_origEventCode').value = '';
     document.getElementById('pf_name').value = '';
+    document.getElementById('pf_dob').value = '';
+    document.getElementById('pf_category').value = '';
     document.getElementById('pf_age').value = '';
     document.getElementById('pf_cricketProfile').value = '';
     document.getElementById('pf_club').value = '';
@@ -5092,7 +5210,9 @@ function showEditPlayerView(playerName, evCode) {
     document.getElementById('pf_origName').value = pName;
     document.getElementById('pf_origEventCode').value = pEvCode;
     document.getElementById('pf_name').value = pName;
-    document.getElementById('pf_age').value = PlayerCategories.fieldValue(player, 'Age');
+    document.getElementById('pf_dob').value = PlayerCategories.playerDay(PlayerCategories.fieldValue(player,'DOB'));
+    document.getElementById('pf_category').value = PlayerCategories.fieldValue(player,'Player Category');
+    document.getElementById('pf_age').value = PlayerCategories.fieldValue(player, 'Age', allEvents.find(e => e.eventCode === getPlayerEventCode(player)));
     document.getElementById('pf_cricketProfile').value = PlayerCategories.fieldValue(player, 'Cricketing Profile');
     document.getElementById('pf_club').value = PlayerCategories.fieldValue(player, 'Club');
     document.getElementById('pf_mobile').value = player['Mobile Number'] || player.mobile || '';
@@ -5122,9 +5242,9 @@ function showEditPlayerView(playerName, evCode) {
     previewPlayerPhoto(photoVal, driveViewVal, pName);
 
     // Roles
-    document.getElementById('pf_battingProfile').value = player['Batting Profile'] || player.battingProfile || '';
+    document.getElementById('pf_battingProfile').value = PlayerCategories.fieldValue(player,'Batting Profile');
     document.getElementById('pf_battingPosition').value = player['Batting position'] || player.battingPosition || '';
-    document.getElementById('pf_bowlingProfile').value = player['Bowling Profile'] || player.bowlingProfile || '';
+    document.getElementById('pf_bowlingProfile').value = PlayerCategories.fieldValue(player,'Bowling Profile');
     document.getElementById('pf_wicketKeeper').value = (player['Are you a wicket keeper?'] || player.wicketKeeper || 'No');
 
     // Stats
@@ -5348,6 +5468,7 @@ function renderPlayersTable() {
         });
     }
 
+    list = [...list].sort((a, b) => PlayerCategories.compareNames(getPlayerName(a), getPlayerName(b)));
     const countBadge = document.getElementById('playersCountBadge');
     if (countBadge) countBadge.textContent = `${list.length} Player${list.length === 1 ? '' : 's'}`;
 
@@ -5500,8 +5621,10 @@ async function addPlayer() {
         name: name,
         Club: club,
         club: club,
-        Age: ageInput.value,
-        'Cricketing Profile': document.getElementById('pf_cricketProfile').value.trim(),
+        'Player Category': document.getElementById('pf_category').value.trim(),
+        'Date of Birth': document.getElementById('pf_dob').value,
+        Age: PlayerCategories.playerAge(document.getElementById('pf_dob').value, allEvents.find(e => e.eventCode === targetEvent)) || ageInput.value,
+        'Cricketing Profile': PlayerCategories.cricketRole(battingPosition,battingProfile,bowlingProfile) || document.getElementById('pf_cricketProfile').value.trim(),
         'Mobile Number': mobile,
         mobile: mobile,
         'Booking ID': bookingId,
@@ -5612,8 +5735,10 @@ async function saveEditPlayer() {
         name: name,
         Club: club,
         club: club,
-        Age: ageInput.value,
-        'Cricketing Profile': document.getElementById('pf_cricketProfile').value.trim(),
+        'Player Category': document.getElementById('pf_category').value.trim(),
+        'Date of Birth': document.getElementById('pf_dob').value,
+        Age: PlayerCategories.playerAge(document.getElementById('pf_dob').value, allEvents.find(e => e.eventCode === targetEvent)) || ageInput.value,
+        'Cricketing Profile': PlayerCategories.cricketRole(battingPosition,battingProfile,bowlingProfile) || document.getElementById('pf_cricketProfile').value.trim(),
         'Mobile Number': mobile,
         mobile: mobile,
         'Booking ID': bookingId,
@@ -6102,7 +6227,7 @@ function getAvailablePlayers(retryCandidates = false) {
         if (preAssigned.has(name)) return false;
         const entry = results.get(name);
         if (!round) return !entry;
-        const matches = PlayerCategories.classify(p, event).categories;
+        const matches = PlayerCategories.classify(p, event).matchedRules;
         const eligible = round.roundId === 'non-category'
             ? !event.playerCategories.some(rule => rule.roundId && matches.includes(rule.name))
             : matches.includes(round.name);
@@ -6789,7 +6914,7 @@ function buildAdminPlayerDetailHtml(player) {
     playerHeaders.forEach(h => {
         if (fieldLabel(h)) return;
         if (isNameField(h) || isPhotoField(h) || _isHidden(h) || _isClub(h)) return;
-        const val = player[h];
+        const val = PlayerCategories.fieldValue(player,h,event);
         if (val == null || !String(val).trim()) return;
         const e = { header: h, value: String(val), icon: _icon(h) };
         if (_isBat(h)) batting.push(e);
