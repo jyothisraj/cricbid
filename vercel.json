@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/player/:eventCode", "destination": "/index.html" }
+  ]
+}
