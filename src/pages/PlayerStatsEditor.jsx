@@ -37,7 +37,7 @@ function RegistrationSummary({profile}) {
   if (!details) return null;
   const fields = [
     ['Club', details.club], ['Age', details.age], ['Cricketing profile', details.role],
-    ['Batting profile', details.batting], ['Batting position', details.position], ['Bowling profile', details.bowling]
+    ['Batting profile', details.batting], ['Bowling profile', details.bowling]
   ];
   return <article className="registration-summary" aria-label="Selected player details">
     <ImageWithFallback src={details.photo} alt={profile.name} containerStyle={{width:'100%',height:'auto',aspectRatio:'1',borderRadius:10,background:'var(--border-subtle)'}} />
