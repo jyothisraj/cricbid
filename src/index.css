@@ -310,3 +310,8 @@ label {
 
 .career-event-banner { height: clamp(110px, 25vw, 220px); overflow: hidden; border-radius: 10px; margin-bottom: 20px; }
 .career-event-banner img { object-fit: contain !important; }
+
+.registration-summary { display:grid; grid-template-columns:clamp(80px,18vw,140px) minmax(0,1fr); align-items:start; gap:16px; margin:18px 0; padding:16px; border:1px solid var(--border-subtle); border-radius:12px; }
+.registration-summary dl { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(120px,100%),1fr)); gap:10px 16px; margin:10px 0 0; }
+.registration-summary dt { font-size:.8rem; color:var(--slate-400); }
+.registration-summary dd { margin:2px 0 0; overflow-wrap:anywhere; }

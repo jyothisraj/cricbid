@@ -1550,6 +1550,7 @@ function playerCareerRequest(data) {
     const keys = headers.map(careerKey);
     const col = (...aliases) => keys.findIndex(key => aliases.map(careerKey).includes(key));
     const profiles = [];
+    const tournament = saving ? null : getEvents().events.find(item => item.eventCode === event);
     rows.forEach((row, index) => {
       if ((String(row[col('eventcode','event')] || 'ESL2026').trim().toUpperCase()) !== event ||
           String(row[col('bookingid','id')] || '').trim() !== bookingId) return;
@@ -1557,7 +1558,23 @@ function playerCareerRequest(data) {
       const booking = row[col('bookingid','id')] || '';
       const stats = {};
       careerFields.forEach(([label,...aliases]) => { stats[label] = row[col(label,...aliases)] || ''; });
-      profiles.push({id: JSON.stringify([index+2,name,booking]), name, booking, stats, row: index+2});
+      const profile = {id: JSON.stringify([index+2,name,booking]), name, booking, stats, row: index+2};
+      if (!saving) {
+        const read = (...aliases) => aliases.map(alias => row[keys.indexOf(careerKey(alias))]).find(v => v && v.trim()) || '';
+        const batting = playerHand(read('Batting Profile','Batting Style'));
+        const position = read('Batting position','Batting Order','Position');
+        const bowling = playerHand(read('Bowling Profile','Bowling Style'));
+        const dobCol = col('Date of Birth','DOB','Birth Date');
+        const dob = dobCol < 0 ? '' : formatDate(sheet.getRange(index+2,dobCol+1).getValue());
+        profile.details = {
+          photo: read('Photo','Photo URL','Player Photo','Profile Photo','Image','Picture','Avatar','Drive View URL'),
+          club: read('Club','Club Name','Cricket Club'),
+          age: playerAge(dob,tournament) || read('Age'),
+          batting, position, bowling,
+          role: cricketRole(position,batting,bowling) || read('Cricketing Profile','Role','Player Role')
+        };
+      }
+      profiles.push(profile);
     });
     if (!saving) {
       if (!profiles.length) throw Error('No registration matches this booking ID for this event.');

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ImageWithFallback from '../components/ImageWithFallback';
 import EventBanner from '../components/EventBanner';
 import { apiPost, getDb, sanitizeKey } from '../services/api';
 
@@ -29,6 +30,21 @@ async function refreshAuctionStats(event, profile, changes) {
     if (candidates.length === 1) await refresh(candidates[0]);
   }
   await refresh(db.ref('players/' + event + '/' + sanitizeKey(profile.name)));
+}
+
+function RegistrationSummary({profile}) {
+  const details = profile?.details;
+  if (!details) return null;
+  const fields = [
+    ['Club', details.club], ['Age', details.age], ['Cricketing profile', details.role],
+    ['Batting profile', details.batting], ['Batting position', details.position], ['Bowling profile', details.bowling]
+  ];
+  return <article className="registration-summary" aria-label="Selected player details">
+    <ImageWithFallback src={details.photo} alt={profile.name} containerStyle={{width:'100%',height:'auto',aspectRatio:'1',borderRadius:10,background:'var(--border-subtle)'}} />
+    <div><h2>{profile.name}</h2>
+      <dl>{fields.map(([label,value]) => <div key={label}><dt>{label}</dt><dd>{value || '\u2014'}</dd></div>)}</dl>
+    </div>
+  </article>;
 }
 
 export default function PlayerStatsEditor({eventCode, tournament}) {
@@ -86,6 +102,7 @@ export default function PlayerStatsEditor({eventCode, tournament}) {
       {session && <label>Player profile<select value={id} onChange={e=>{ select(profiles.find(p=>p.id===e.target.value)); setMessage(''); }}>
         <option value="">Choose a registration</option>{profiles.map((p,i)=><option key={p.id} value={p.id}>{p.name} · {p.booking || 'Registration '+(i+1)}</option>)}
       </select></label>}
+      {id && <RegistrationSummary key={id} profile={profiles.find(p=>p.id === id)} />}
       {id && Object.entries(groups).map(([group,fields])=><section key={group}><h2>{group}</h2><div>{fields.map(key=><label key={key}>{labels[key] || key}<input type="number" min="0" step={labels[key] || key==='Economy' ? 'any' : '1'} value={stats[key] ?? ''} onChange={e=>setStats({...stats,[key]:e.target.value})}/></label>)}</div></section>)}
       <button type="submit" className="btn btn-primary" disabled={busy || Boolean(session && !id)}>{session ? 'Save statistics' : 'Find registration'}</button>
       {session && <button type="button" className="btn btn-outline" onClick={()=>{setSession('');setBookingId('');select(null);setProfiles([]);setMessage('');}}>Finish</button>}
